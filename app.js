@@ -11,7 +11,7 @@ if (!API_BASE_URL) {
     API_BASE_URL = window.location.origin;
   } else {
     // Default fallback saat dibuka di GitHub Pages
-    API_BASE_URL = 'https://feeds-champagne-bell-altered.trycloudflare.com';
+    API_BASE_URL = 'https://bookstore-considerations-underwear-traveler.trycloudflare.com';
   }
 }
 

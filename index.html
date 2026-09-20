@@ -8,6 +8,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- PDF.js CDN untuk kalkulasi jumlah halaman langsung di browser -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- QRCode.js CDN untuk membuat barcode QRIS langsung di browser pelanggan -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -188,7 +190,7 @@
 
       <!-- Wadah Barcode QRIS -->
       <div class="p-3 bg-white border-2 border-slate-200 rounded-2xl inline-block shadow-inner mb-3">
-        <img id="qrisImg" src="" alt="QRIS Code" class="w-56 h-56 mx-auto object-contain">
+        <div id="qrisQrcode" class="w-56 h-56 mx-auto flex items-center justify-center"></div>
       </div>
 
       <!-- Status Indicator -->
@@ -237,15 +239,10 @@
     </div>
   </div>
 
-  <!-- Footer / Config Settings (bisa disembunyikan/diatur untuk GitHub Pages) -->
+  <!-- Footer Bersih Tanpa Input Backend API -->
   <footer class="bg-white border-t border-slate-200 py-4">
-    <div class="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+    <div class="max-w-4xl mx-auto px-4 text-center text-xs text-slate-400">
       <p>© 2026 Kios Cetak Mandiri EPSON. Semua Hak Dilindungi.</p>
-      <div class="flex items-center space-x-2">
-        <span>Backend API:</span>
-        <input type="text" id="apiEndpointInput" class="border border-slate-300 rounded px-2 py-0.5 text-slate-600 text-xs w-48 font-mono focus:outline-blue-500" value="http://localhost:3000">
-        <button id="btnSaveApi" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-semibold transition">Simpan</button>
-      </div>
     </div>
   </footer>
 

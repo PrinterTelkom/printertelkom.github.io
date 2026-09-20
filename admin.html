@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Admin - Printer Lab Telkom</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col justify-between">
+
+  <!-- Header Admin -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-5xl mx-auto px-4 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-red-500/30">
+          🛠️
+        </div>
+        <div>
+          <h1 class="text-lg font-extrabold text-slate-900 leading-tight">Portal Admin Printer Lab Telkom</h1>
+          <p class="text-xs text-slate-500">Validasi Token Pelanggan & Riwayat Cetak</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-2">
+        <a href="index.html" class="text-xs font-bold text-slate-600 hover:text-red-600 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 transition">
+          ← Ke Halaman Kios
+        </a>
+        <button id="btnLogout" class="hidden text-xs font-bold text-red-600 hover:text-red-800 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition">
+          Keluar
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Login Section (Jika belum login) -->
+  <div id="loginSection" class="max-w-md mx-auto w-full px-4 py-16 flex-1 flex items-center justify-center">
+    <div class="bg-white rounded-3xl shadow-xl border border-slate-200 p-8 w-full text-center">
+      <div class="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
+        🔒
+      </div>
+      <h2 class="text-2xl font-black text-slate-900">Masuk Portal Admin</h2>
+      <p class="text-xs text-slate-500 mt-1 mb-6">Masukkan kata sandi admin untuk mengakses token dan riwayat cetak</p>
+      
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <input type="password" id="adminPasswordInput" placeholder="Kata Sandi Admin" class="w-full text-center px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-red-600 focus:outline-none font-bold text-sm">
+        </div>
+        <p id="loginErrorMsg" class="hidden text-xs text-red-500 font-bold">❌ Kata sandi salah. Coba lagi.</p>
+        <button type="submit" class="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 transition">
+          Buka Dashboard
+        </button>
+      </form>
+      <p class="text-[11px] text-slate-400 mt-4">*Password bawaan: <span class="font-mono font-bold text-slate-600">telkom123</span></p>
+    </div>
+  </div>
+
+  <!-- Dashboard Section (Setelah Login) -->
+  <main id="dashboardSection" class="max-w-5xl mx-auto w-full px-4 py-8 flex-1 space-y-6 hidden">
+    
+    <!-- Bagian 1: Generator & Cek Token Pesanan -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      
+      <div class="md:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center space-x-2 text-red-600 mb-2">
+          <span class="text-xl">🔑</span>
+          <h3 class="font-bold text-base text-slate-900">Cari Token Validasi Pelanggan</h3>
+        </div>
+        <p class="text-xs text-slate-500 mb-4">
+          Saat pelanggan mengirim bukti transfer via WA, masukkan <b>ID Pesanan</b> yang tertera di pesan WA pelanggan:
+        </p>
+
+        <div class="flex items-center space-x-3">
+          <input type="text" id="lookupOrderIdInput" placeholder="Contoh: PRN-382910 atau 382910" class="flex-1 px-4 py-3 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono font-bold text-slate-800 uppercase focus:border-red-600 focus:outline-none">
+          <button id="btnLookupToken" class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow transition">
+            Lihat Token
+          </button>
+        </div>
+
+        <!-- Hasil Token Muncul di Sini -->
+        <div id="tokenResultBox" class="hidden mt-5 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <p class="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Token Cetak Valid:</p>
+            <p id="generatedTokenText" class="text-4xl font-black text-emerald-700 font-mono tracking-widest mt-1">----</p>
+            <p id="orderIdBadge" class="text-[11px] font-mono text-emerald-600 mt-1">ID: PRN-000000</p>
+          </div>
+          <div class="flex items-center space-x-2 w-full sm:w-auto">
+            <button id="btnCopyToken" class="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center space-x-1">
+              <span>📋</span>
+              <span id="copyText">Salin Token</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kartu Master PIN Toko -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center space-x-2 text-amber-600 mb-2">
+            <span class="text-xl">⭐</span>
+            <h3 class="font-bold text-base text-slate-900">Master PIN Toko</h3>
+          </div>
+          <p class="text-xs text-slate-500 leading-relaxed">
+            Jika Anda sedang sibuk melayani pembeli dan tidak sempat membuka web admin ini, Anda bisa langsung membalas WA pelanggan dengan Master PIN ini:
+          </p>
+        </div>
+        <div class="my-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-center">
+          <p class="text-[11px] font-bold text-amber-800 uppercase">PIN Master Cadangan</p>
+          <p class="text-3xl font-black text-amber-700 tracking-widest font-mono mt-1">2418</p>
+          <p class="text-[10px] text-amber-600 mt-1">*Selalu valid untuk semua order</p>
+        </div>
+        <p class="text-[11px] text-slate-400 text-center">Nomor WA Admin: 0815-3685-2418</p>
+      </div>
+
+    </div>
+
+    <!-- Bagian 2: Statistik Ringkas -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
+        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-2xl font-bold">
+          📄
+        </div>
+        <div>
+          <p class="text-xs text-slate-500 font-semibold">Total Transaksi</p>
+          <p id="statTotalOrders" class="text-2xl font-black text-slate-900">0</p>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
+        <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-2xl font-bold">
+          📑
+        </div>
+        <div>
+          <p class="text-xs text-slate-500 font-semibold">Lembar Dicetak</p>
+          <p id="statTotalPages" class="text-2xl font-black text-slate-900">0 Hal</p>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
+        <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-2xl font-bold">
+          💰
+        </div>
+        <div>
+          <p class="text-xs text-slate-500 font-semibold">Total Pendapatan</p>
+          <p id="statTotalRevenue" class="text-2xl font-black text-emerald-600">Rp 0</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bagian 3: Riwayat Cetak & Pembayaran -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 gap-3">
+        <div>
+          <h3 class="font-bold text-base text-slate-900 flex items-center space-x-2">
+            <span>📋</span>
+            <span>Riwayat Transaksi di Printer Lab Telkom</span>
+          </h3>
+          <p class="text-xs text-slate-500">Merekam semua dokumen yang telah divalidasi dan dicetak</p>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button id="btnClearHistory" class="text-xs font-semibold text-red-600 hover:text-red-800 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition">
+            Hapus Riwayat
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabel Riwayat -->
+      <div class="overflow-x-auto mt-4">
+        <table class="w-full text-left text-xs text-slate-600">
+          <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+            <tr>
+              <th class="py-3 px-3">Waktu</th>
+              <th class="py-3 px-3">ID Pesanan</th>
+              <th class="py-3 px-3">Nama Dokumen</th>
+              <th class="py-3 px-3">Halaman</th>
+              <th class="py-3 px-3">Total Biaya</th>
+              <th class="py-3 px-3">Token Digunakan</th>
+              <th class="py-3 px-3 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody" class="divide-y divide-slate-100">
+            <tr>
+              <td colspan="7" class="py-8 text-center text-slate-400">
+                Belum ada transaksi tercatat.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 mt-8">
+    <div class="max-w-5xl mx-auto px-4 text-center text-xs text-slate-400">
+      <p>© 2026 Printer Lab Telkom. Portal Manajemen Khusus Admin.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Algoritma Token Deterministik Rahasia Lab Telkom
+    function generateOrderToken(orderId) {
+      // Normalisasi format ID (jika user hanya ketik angka)
+      let cleanId = orderId.toUpperCase().trim();
+      if (!cleanId.startsWith('PRN-')) {
+        cleanId = `PRN-${cleanId}`;
+      }
+      let hash = 0;
+      const seed = `LABTELKOM_${cleanId}_SEC2026`;
+      for (let i = 0; i < seed.length; i++) {
+        hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+        hash |= 0;
+      }
+      const token = (Math.abs(hash) % 9000) + 1000;
+      return { token: token.toString(), fullId: cleanId };
+    }
+
+    // Auth Password Admin
+    const DEFAULT_PASS = 'telkom123';
+    const loginSection = document.getElementById('loginSection');
+    const dashboardSection = document.getElementById('dashboardSection');
+    const loginForm = document.getElementById('loginForm');
+    const adminPasswordInput = document.getElementById('adminPasswordInput');
+    const loginErrorMsg = document.getElementById('loginErrorMsg');
+    const btnLogout = document.getElementById('btnLogout');
+
+    function checkAuth() {
+      if (sessionStorage.getItem('lab_telkom_admin_auth') === 'true') {
+        loginSection.classList.add('hidden');
+        dashboardSection.classList.remove('hidden');
+        btnLogout.classList.remove('hidden');
+        loadHistory();
+      } else {
+        loginSection.classList.remove('hidden');
+        dashboardSection.classList.add('hidden');
+        btnLogout.classList.add('hidden');
+      }
+    }
+
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const enteredPass = adminPasswordInput.value.trim();
+      const validPass = localStorage.getItem('lab_telkom_admin_pass') || DEFAULT_PASS;
+
+      if (enteredPass === validPass) {
+        sessionStorage.setItem('lab_telkom_admin_auth', 'true');
+        loginErrorMsg.classList.add('hidden');
+        checkAuth();
+      } else {
+        loginErrorMsg.classList.remove('hidden');
+        adminPasswordInput.value = '';
+        adminPasswordInput.focus();
+      }
+    });
+
+    btnLogout.addEventListener('click', () => {
+      sessionStorage.removeItem('lab_telkom_admin_auth');
+      checkAuth();
+    });
+
+    // Lookup Token
+    const lookupOrderIdInput = document.getElementById('lookupOrderIdInput');
+    const btnLookupToken = document.getElementById('btnLookupToken');
+    const tokenResultBox = document.getElementById('tokenResultBox');
+    const generatedTokenText = document.getElementById('generatedTokenText');
+    const orderIdBadge = document.getElementById('orderIdBadge');
+    const btnCopyToken = document.getElementById('btnCopyToken');
+    const copyText = document.getElementById('copyText');
+
+    function doLookup() {
+      const val = lookupOrderIdInput.value.trim();
+      if (!val) {
+        alert('Harap masukkan ID Pesanan pelanggan.');
+        return;
+      }
+
+      const res = generateOrderToken(val);
+      generatedTokenText.textContent = res.token;
+      orderIdBadge.textContent = `ID Pesanan: #${res.fullId}`;
+      tokenResultBox.classList.remove('hidden');
+    }
+
+    btnLookupToken.addEventListener('click', doLookup);
+    lookupOrderIdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doLookup();
+    });
+
+    btnCopyToken.addEventListener('click', () => {
+      const tok = generatedTokenText.textContent;
+      navigator.clipboard.writeText(tok);
+      copyText.textContent = 'Tersalin!';
+      setTimeout(() => copyText.textContent = 'Salin Token', 1500);
+    });
+
+    // Load History & Statistik
+    const historyTableBody = document.getElementById('historyTableBody');
+    const statTotalOrders = document.getElementById('statTotalOrders');
+    const statTotalPages = document.getElementById('statTotalPages');
+    const statTotalRevenue = document.getElementById('statTotalRevenue');
+    const btnClearHistory = document.getElementById('btnClearHistory');
+
+    function loadHistory() {
+      const history = JSON.parse(localStorage.getItem('lab_telkom_history') || '[]');
+      
+      let totalOrders = history.length;
+      let totalPages = 0;
+      let totalRevenue = 0;
+
+      if (history.length === 0) {
+        historyTableBody.innerHTML = `
+          <tr>
+            <td colspan="7" class="py-8 text-center text-slate-400">
+              Belum ada riwayat transaksi tercatat di browser ini.
+            </td>
+          </tr>
+        `;
+      } else {
+        let html = '';
+        history.forEach((item) => {
+          totalPages += (item.pages * (item.copies || 1));
+          totalRevenue += (item.totalCost || 0);
+
+          html += `
+            <tr class="hover:bg-slate-50 transition">
+              <td class="py-3 px-3 font-mono text-[11px] text-slate-500">${item.date}</td>
+              <td class="py-3 px-3 font-mono font-bold text-slate-800">${item.orderId}</td>
+              <td class="py-3 px-3 font-semibold text-slate-800 max-w-xs truncate" title="${item.fileName}">
+                ${item.fileName}
+              </td>
+              <td class="py-3 px-3">${item.pages} Hal (${item.copies || 1}x)</td>
+              <td class="py-3 px-3 font-bold text-slate-900">Rp ${(item.totalCost || 0).toLocaleString('id-ID')}</td>
+              <td class="py-3 px-3 font-mono font-bold text-emerald-700">${item.tokenUsed || '-'}</td>
+              <td class="py-3 px-3 text-center">
+                <span class="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                  SELESAI
+                </span>
+              </td>
+            </tr>
+          `;
+        });
+        historyTableBody.innerHTML = html;
+      }
+
+      statTotalOrders.textContent = totalOrders;
+      statTotalPages.textContent = `${totalPages} Hal`;
+      statTotalRevenue.textContent = `Rp ${totalRevenue.toLocaleString('id-ID')}`;
+    }
+
+    btnClearHistory.addEventListener('click', () => {
+      if (confirm('Apakah Anda yakin ingin menghapus seluruh riwayat transaksi?')) {
+        localStorage.removeItem('lab_telkom_history');
+        loadHistory();
+      }
+    });
+
+    // Jalankan auth awal
+    checkAuth();
+  </script>
+</body>
+</html>

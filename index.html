@@ -253,6 +253,26 @@
           </a>
         </div>
 
+        <!-- Status Realtime & Auto-Validation Indicator -->
+        <div id="realtimeValidationIndicator" class="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-center space-y-1">
+          <div class="flex items-center justify-center space-x-2 text-xs font-bold text-blue-700">
+            <span class="relative flex h-2.5 w-2.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
+            </span>
+            <span>Menunggu Konfirmasi Admin...</span>
+          </div>
+          <p class="text-[11px] text-slate-500">
+            Dokumen akan <b>otomatis dicetak langsung</b> begitu admin memvalidasi di sistem (tanpa perlu ketik token).
+          </p>
+        </div>
+
+        <div class="flex items-center justify-center space-x-2 text-slate-300 text-[11px]">
+          <div class="h-px bg-slate-200 flex-1"></div>
+          <span class="text-slate-400 font-semibold uppercase text-[10px]">atau ketik token manual</span>
+          <div class="h-px bg-slate-200 flex-1"></div>
+        </div>
+
         <!-- Langkah 3: Input Token dari Admin -->
         <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
           <label for="tokenInput" class="text-xs font-bold text-slate-700 block mb-1">

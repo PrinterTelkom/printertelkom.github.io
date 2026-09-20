@@ -545,6 +545,27 @@ function triggerSuccessPrint(tokenUsed = 'VALIDASI LANGSUNG ADMIN') {
   prepareAndPrintPdf();
 }
 
+function triggerRejectOrder() {
+  if (!currentOrderId) return;
+  
+  if (autoValidationTimer) {
+    clearInterval(autoValidationTimer);
+    autoValidationTimer = null;
+  }
+
+  qrisModal.classList.add('hidden');
+  
+  try {
+    let pendingList = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
+    pendingList = pendingList.filter(p => p.orderId !== currentOrderId);
+    localStorage.setItem('lab_pending_orders', JSON.stringify(pendingList));
+    localStorage.removeItem(`rejected_order_${currentOrderId.toUpperCase()}`);
+  } catch(e) {}
+
+  alert(`❌ PESANAN DITOLAK\n\nMaaf, antrean pesanan Anda (${currentOrderId}) telah ditolak oleh Admin karena terjadi penumpukan atau kendala lainnya.\n\nSilakan hubungi Admin via WhatsApp.`);
+  resetFile();
+}
+
 // 1. Dengar sinyal BroadcastChannel (Instan antar-tab browser di komputer Kios yang sama)
 if (syncChannel) {
   syncChannel.onmessage = (e) => {
@@ -552,14 +573,22 @@ if (syncChannel) {
       if (currentOrderId && e.data.orderId && e.data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
         triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
       }
+    } else if (e.data && e.data.action === 'ORDER_REJECTED') {
+      if (currentOrderId && e.data.orderId && e.data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
+        triggerRejectOrder();
+      }
     }
   };
 }
 
 // 2. Dengar sinyal window storage event
 window.addEventListener('storage', (e) => {
-  if (currentOrderId && e.key === `validated_order_${currentOrderId.toUpperCase()}`) {
-    triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
+  if (currentOrderId) {
+    if (e.key === `validated_order_${currentOrderId.toUpperCase()}`) {
+      triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
+    } else if (e.key === `rejected_order_${currentOrderId.toUpperCase()}`) {
+      triggerRejectOrder();
+    }
   }
 });
 
@@ -571,6 +600,11 @@ function startAutoValidationWatcher() {
     const validated = localStorage.getItem(`validated_order_${currentOrderId.toUpperCase()}`);
     if (validated) {
       triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
+      return;
+    }
+    const rejected = localStorage.getItem(`rejected_order_${currentOrderId.toUpperCase()}`);
+    if (rejected) {
+      triggerRejectOrder();
     }
   }, 1000);
 }
@@ -587,6 +621,10 @@ try {
       if (data && data.action === 'ORDER_VALIDATED' && data.orderId) {
         if (currentOrderId && data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
           triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
+        }
+      } else if (data && data.action === 'ORDER_REJECTED' && data.orderId) {
+        if (currentOrderId && data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
+          triggerRejectOrder();
         }
       }
     } catch(err) {}

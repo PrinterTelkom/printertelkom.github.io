@@ -3,25 +3,74 @@ if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-// Konfigurasi API Endpoint
-let API_BASE_URL = localStorage.getItem('kiosk_api_url') || '';
-if (!API_BASE_URL) {
-  // Jika dibuka di localhost atau IP lokal
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000') {
-    API_BASE_URL = window.location.origin;
-  } else {
-    // Default fallback saat dibuka di GitHub Pages
-    API_BASE_URL = 'https://bookstore-considerations-underwear-traveler.trycloudflare.com';
+// --- ENGINE QRIS DINAMIS STANDAR EMVCo (Client-Side) ---
+function calculateCRC16(str) {
+  let crc = 0xFFFF;
+  for (let c = 0; c < str.length; c++) {
+    crc ^= str.charCodeAt(c) << 8;
+    for (let i = 0; i < 8; i++) {
+      if ((crc & 0x8000) !== 0) {
+        crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+      } else {
+        crc = (crc << 1) & 0xFFFF;
+      }
+    }
   }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
 }
 
-// State
+function formatTLV(tag, value) {
+  const len = value.length.toString().padStart(2, '0');
+  return `${tag}${len}${value}`;
+}
+
+function generateDynamicQRIS(amount, merchantName = "PRINTER TELKOM", orderId = "") {
+  const amountStr = Math.round(amount).toString();
+  const tag54 = formatTLV("54", amountStr); // Tag 54: Transaction Amount
+  
+  let qrisData = "";
+  qrisData += formatTLV("00", "01"); // Format indicator
+  qrisData += formatTLV("01", "12"); // 12 = Dynamic QR
+  
+  // Tag 26: Merchant Info
+  const sub26_00 = formatTLV("00", "ID.CO.QRIS.WWW");
+  const sub26_01 = formatTLV("01", "0000000000000001");
+  const sub26_02 = formatTLV("02", "123456789012345");
+  const sub26_03 = formatTLV("03", "UMI");
+  qrisData += formatTLV("26", sub26_00 + sub26_01 + sub26_02 + sub26_03);
+
+  // Tag 51: GPN Info
+  const sub51_00 = formatTLV("00", "ID.OR.GPN");
+  const sub51_01 = formatTLV("01", "195450000000000");
+  const sub51_02 = formatTLV("02", "0123456789");
+  qrisData += formatTLV("51", sub51_00 + sub51_01 + sub51_02);
+
+  qrisData += formatTLV("52", "5999");
+  qrisData += formatTLV("53", "360"); // IDR Currency
+  qrisData += tag54;
+  qrisData += formatTLV("58", "ID");
+  qrisData += formatTLV("59", merchantName.substring(0, 25));
+  qrisData += formatTLV("60", "BANDUNG");
+  qrisData += formatTLV("61", "40115");
+
+  if (orderId) {
+    qrisData += formatTLV("62", formatTLV("01", orderId));
+  }
+
+  const dataForCRC = qrisData + "6304";
+  const checksum = calculateCRC16(dataForCRC);
+  return dataForCRC + checksum;
+}
+
+// State Aplikasi
 let selectedFile = null;
+let selectedFileUrl = null;
 let pageCount = 0;
 let copies = 1;
 const PRICE_PER_PAGE = 1000;
 let currentOrderId = null;
-let statusPollingInterval = null;
+let currentTotalCost = 0;
+let qrcodeInstance = null;
 
 // DOM Elements
 const dropZone = document.getElementById('dropZone');
@@ -43,7 +92,7 @@ const qrisModal = document.getElementById('qrisModal');
 const btnCloseModal = document.getElementById('btnCloseModal');
 const modalAmount = document.getElementById('modalAmount');
 const modalOrderId = document.getElementById('modalOrderId');
-const qrisImg = document.getElementById('qrisImg');
+const qrisQrcodeDiv = document.getElementById('qrisQrcode');
 const paymentStatusBox = document.getElementById('paymentStatusBox');
 const paymentStatusText = document.getElementById('paymentStatusText');
 const btnSimulatePay = document.getElementById('btnSimulatePay');
@@ -51,11 +100,6 @@ const btnSimulatePay = document.getElementById('btnSimulatePay');
 // Success Modal
 const successModal = document.getElementById('successModal');
 const btnFinishOrder = document.getElementById('btnFinishOrder');
-
-// Footer & Printer info
-const apiEndpointInput = document.getElementById('apiEndpointInput');
-const btnSaveApi = document.getElementById('btnSaveApi');
-const printerNameText = document.getElementById('printerNameText');
 
 // Format Rupiah
 function formatRupiah(amount) {
@@ -71,9 +115,9 @@ function formatFileSize(bytes) {
 
 // Update Kalkulasi Harga
 function updateCalculation() {
-  const totalCost = pageCount * PRICE_PER_PAGE * copies;
+  currentTotalCost = pageCount * PRICE_PER_PAGE * copies;
   formulaText.textContent = `${pageCount} hal x Rp 1.000 x ${copies} copy`;
-  totalCostDisplay.textContent = formatRupiah(totalCost);
+  totalCostDisplay.textContent = formatRupiah(currentTotalCost);
 }
 
 // Hitung Jumlah Halaman Menggunakan PDF.js langsung di Browser
@@ -84,6 +128,9 @@ async function processPdfFile(file) {
   }
 
   selectedFile = file;
+  if (selectedFileUrl) URL.revokeObjectURL(selectedFileUrl);
+  selectedFileUrl = URL.createObjectURL(file);
+
   fileNameDisplay.textContent = file.name;
   fileSizeDisplay.textContent = formatFileSize(file.size);
   pageCountDisplay.textContent = 'Menghitung...';
@@ -108,26 +155,16 @@ async function processPdfFile(file) {
 // Reset File
 function resetFile() {
   selectedFile = null;
+  if (selectedFileUrl) {
+    URL.revokeObjectURL(selectedFileUrl);
+    selectedFileUrl = null;
+  }
   pageCount = 0;
   copies = 1;
   copiesInput.value = 1;
   fileInput.value = '';
   dropZone.classList.remove('hidden');
   fileDetailPanel.classList.add('hidden');
-}
-
-// Fetch Info Printer dari Server
-async function checkServerInfo() {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/info`);
-    if (res.ok) {
-      const data = await res.json();
-      printerNameText.textContent = data.selectedPrinter || 'EPSON Ready';
-    }
-  } catch (e) {
-    console.warn('Backend API belum terhubung atau offline:', e.message);
-    printerNameText.textContent = 'EPSON Standby';
-  }
 }
 
 // Event Listeners Drag & Drop
@@ -183,113 +220,62 @@ copiesInput.addEventListener('input', () => {
   updateCalculation();
 });
 
-// Proses Pembayaran & Tampilkan QRIS
-btnProcessPayment.addEventListener('click', async () => {
-  if (!selectedFile) return;
+// Proses Pembayaran: Buat QRIS Dinamis 100% di Sisi Browser (Tanpa Butuh Server)
+btnProcessPayment.addEventListener('click', () => {
+  if (!selectedFile || pageCount <= 0) return;
 
-  btnProcessPayment.disabled = true;
-  btnProcessPayment.innerHTML = `
-    <svg class="animate-spin h-5 w-5 text-white inline-block mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-    </svg>
-    Membuat Kode QRIS...
-  `;
+  currentOrderId = `PRN-${Date.now().toString().slice(-6)}`;
+  const total = pageCount * PRICE_PER_PAGE * copies;
 
-  try {
-    const formData = new FormData();
-    formData.append('document', selectedFile);
-    formData.append('copies', copies);
+  // Generate QRIS String standar EMVCo dengan Tag 54 = total
+  const qrisString = generateDynamicQRIS(total, "PRINTER TELKOM", currentOrderId);
 
-    const res = await fetch(`${API_BASE_URL}/api/upload`, {
-      method: 'POST',
-      body: formData
+  // Update Tampilan Modal
+  modalAmount.textContent = formatRupiah(total);
+  modalOrderId.textContent = `ID ORDER: ${currentOrderId}`;
+
+  // Bersihkan qrcode sebelumnya jika ada
+  qrisQrcodeDiv.innerHTML = '';
+  
+  // Render Barcode QRIS menggunakan QRCode.js di Browser
+  if (window.QRCode) {
+    qrcodeInstance = new QRCode(qrisQrcodeDiv, {
+      text: qrisString,
+      width: 210,
+      height: 210,
+      colorDark: "#000000",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M
     });
-
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || 'Gagal membuat transaksi.');
-    }
-
-    const data = await res.json();
-    currentOrderId = data.order.orderId;
-
-    // Tampilkan data di Modal QRIS
-    modalAmount.textContent = data.order.totalCostFormatted;
-    modalOrderId.textContent = `ID ORDER: ${currentOrderId}`;
-    qrisImg.src = data.order.qrisImage;
-
-    // Reset status box modal
-    paymentStatusBox.className = 'flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold';
-    paymentStatusText.textContent = 'Menunggu pembayaran Anda...';
-
-    // Buka Modal
-    qrisModal.classList.remove('hidden');
-
-    // Mulai polling cek status pembayaran
-    startStatusPolling(currentOrderId);
-
-  } catch (err) {
-    console.error(err);
-    alert('Terjadi kesalahan: ' + err.message + '\n\nPastikan Server Backend aktif di: ' + API_BASE_URL);
-  } finally {
-    btnProcessPayment.disabled = false;
-    btnProcessPayment.innerHTML = `<span>Lanjut Bayar dengan QRIS</span><span>💳</span>`;
+  } else {
+    // Fallback online QR generator jika library belum termuat
+    qrisQrcodeDiv.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=210x210&data=${encodeURIComponent(qrisString)}" class="w-52 h-52 mx-auto">`;
   }
+
+  // Buka Modal QRIS
+  qrisModal.classList.remove('hidden');
 });
-
-// Polling Status Pembayaran
-function startStatusPolling(orderId) {
-  if (statusPollingInterval) clearInterval(statusPollingInterval);
-
-  statusPollingInterval = setInterval(async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/order-status/${orderId}`);
-      if (!res.ok) return;
-
-      const data = await res.json();
-      console.log('[POLL STATUS]:', data.status);
-
-      if (data.status === 'PAID' || data.status === 'PRINTING') {
-        paymentStatusBox.className = 'flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold';
-        paymentStatusText.innerHTML = `<span>⚡ Pembayaran Lunas! Sedang mencetak ke printer...</span>`;
-      } else if (data.status === 'COMPLETED') {
-        clearInterval(statusPollingInterval);
-        qrisModal.classList.add('hidden');
-        successModal.classList.remove('hidden');
-      } else if (data.status === 'FAILED_TO_PRINT') {
-        clearInterval(statusPollingInterval);
-        alert('Pembayaran lunas, namun printer mengalami kendala saat mencetak. Silakan hubungi kasir.');
-      }
-    } catch (e) {
-      console.warn('Gagal polling status:', e.message);
-    }
-  }, 2000);
-}
 
 // Tutup Modal QRIS
 btnCloseModal.addEventListener('click', () => {
-  if (statusPollingInterval) clearInterval(statusPollingInterval);
   qrisModal.classList.add('hidden');
 });
 
-// Tombol Simulasi Bayar Lunas (Untuk Testing Kiosk)
-btnSimulatePay.addEventListener('click', async () => {
-  if (!currentOrderId) return;
-  try {
-    btnSimulatePay.disabled = true;
-    btnSimulatePay.textContent = 'Memproses konfirmasi...';
+// Tombol Simulasi Bayar Lunas / Konfirmasi Bayar
+btnSimulatePay.addEventListener('click', () => {
+  qrisModal.classList.add('hidden');
+  successModal.classList.remove('hidden');
 
-    const res = await fetch(`${API_BASE_URL}/api/simulate-pay/${currentOrderId}`, {
-      method: 'POST'
-    });
-    const data = await res.json();
-    console.log('[SIMULATE PAY RESULT]:', data);
-  } catch (err) {
-    alert('Gagal simulasi bayar: ' + err.message);
-  } finally {
-    btnSimulatePay.disabled = false;
-    btnSimulatePay.textContent = '⚡ [UJI COBA] Simulasi Bayar Lunas';
+  // Jika dibuka di browser komputer yang tersambung ke printer EPSON,
+  // langsung buka jendela cetak dokumen PDF!
+  if (selectedFileUrl) {
+    const printWindow = window.open(selectedFileUrl, '_blank');
+    if (printWindow) {
+      printWindow.focus();
+      setTimeout(() => {
+        try { printWindow.print(); } catch (e) {}
+      }, 1000);
+    }
   }
 });
 
@@ -298,18 +284,3 @@ btnFinishOrder.addEventListener('click', () => {
   successModal.classList.add('hidden');
   resetFile();
 });
-
-// Pengaturan API Endpoint di Footer
-apiEndpointInput.value = API_BASE_URL;
-btnSaveApi.addEventListener('click', () => {
-  const newUrl = apiEndpointInput.value.trim().replace(/\/+$/, '');
-  if (newUrl) {
-    API_BASE_URL = newUrl;
-    localStorage.setItem('kiosk_api_url', newUrl);
-    alert('Alamat API Backend berhasil disimpan: ' + newUrl);
-    checkServerInfo();
-  }
-});
-
-// Initial Check
-checkServerInfo();

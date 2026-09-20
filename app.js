@@ -322,7 +322,7 @@ btnProcessPayment.addEventListener('click', async () => {
   // 1. CEK DAHULU APAKAH PRINTER AKTIF SEBELUM LANJUT KE PEMBAYARAN
   const originalBtnHtml = btnProcessPayment.innerHTML;
   btnProcessPayment.disabled = true;
-  btnProcessPayment.innerHTML = `<span>Mengecek status printer...</span><span class="animate-pulse">â³</span>`;
+  btnProcessPayment.innerHTML = `<span>Mengecek status printer...</span><span class="animate-pulse">⏳</span>`;
 
   const printerStatus = await checkPrinterStatus();
   btnProcessPayment.disabled = false;
@@ -352,7 +352,7 @@ btnProcessPayment.addEventListener('click', async () => {
   modalOrderId.textContent = `ID ORDER: #${currentOrderId}`;
 
   // Link WhatsApp Admin Aman: HANYA BERISI ID PESANAN (KODE TOKEN TIDAK DICANTUMKAN!)
-  const waMessage = `Halo Admin Printer Lab Telkom,\nSaya sudah transfer ${formatRupiah(total)} via QRIS (LAB. TELEKOMUNIKASI UB) untuk cetak dokumen "${selectedFile.name}".\n\nID Pesanan: #${currentOrderId}\n\nMohon dicek bukti transfer saya dan kirimkan token cetaknya ya min! ðŸ™`;
+  const waMessage = `Halo Admin Printer Lab Telkom,\nSaya sudah transfer ${formatRupiah(total)} via QRIS (LAB. TELEKOMUNIKASI UB) untuk cetak dokumen "${selectedFile.name}".\n\nID Pesanan: #${currentOrderId}\n\nMohon dicek bukti transfer saya dan kirimkan token cetaknya ya min! 🙏`;
   btnWhatsAppAdmin.href = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(waMessage)}`;
 
   // Reset form input token
@@ -562,7 +562,7 @@ function triggerRejectOrder() {
     localStorage.removeItem(`rejected_order_${currentOrderId.toUpperCase()}`);
   } catch(e) {}
 
-  alert(`âŒ PESANAN DITOLAK\n\nMaaf, antrean pesanan Anda (${currentOrderId}) telah ditolak oleh Admin karena terjadi penumpukan atau kendala lainnya.\n\nSilakan hubungi Admin via WhatsApp.`);
+  alert(`❌ PESANAN DITOLAK\n\nMaaf, antrean pesanan Anda (${currentOrderId}) telah ditolak oleh Admin karena terjadi penumpukan atau kendala lainnya.\n\nSilakan hubungi Admin via WhatsApp.`);
   resetFile();
 }
 

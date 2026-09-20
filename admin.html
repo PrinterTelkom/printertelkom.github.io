@@ -64,12 +64,40 @@
           Buka Dashboard
         </button>
       </form>
-      <p class="text-[11px] text-slate-400 mt-4">*Password bawaan: <span class="font-mono font-bold text-slate-600">telkom123</span></p>
     </div>
   </div>
 
   <!-- Dashboard Section (Setelah Login) -->
   <main id="dashboardSection" class="max-w-5xl mx-auto w-full px-4 py-8 flex-1 space-y-6 hidden">
+
+    <!-- Panel Kontrol Status Printer Kios -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div id="adminPrinterIconBg" class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold">
+          🖨️
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h3 class="font-extrabold text-base text-slate-900">Status Kesiapan Printer:</h3>
+            <span id="adminPrinterStatusBadge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+              🟢 ONLINE (SIAP CETAK)
+            </span>
+          </div>
+          <p id="adminPrinterStatusDesc" class="text-xs text-slate-500 mt-0.5">Pelanggan diizinkan melakukan pembayaran QRIS.</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-2 w-full sm:w-auto">
+        <button id="btnSetPrinterOnline" class="flex-1 sm:flex-initial px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1">
+          <span>🟢</span>
+          <span>Set SIAP CETAK</span>
+        </button>
+        <button id="btnSetPrinterOffline" class="flex-1 sm:flex-initial px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1">
+          <span>🔴</span>
+          <span>Set OFFLINE / HABIS</span>
+        </button>
+      </div>
+    </div>
     
     <!-- Bagian 1: Generator & Cek Token Pesanan -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -151,7 +179,7 @@
         </div>
         <div class="my-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-center">
           <p class="text-[11px] font-bold text-amber-800 uppercase">PIN Master Cadangan</p>
-          <p class="text-3xl font-black text-amber-700 tracking-widest font-mono mt-1">2418</p>
+          <p class="text-3xl font-black text-amber-700 tracking-widest font-mono mt-1">2423</p>
           <p class="text-[10px] text-amber-600 mt-1">*Selalu valid untuk semua order</p>
         </div>
         <p class="text-[11px] text-slate-400 text-center">Nomor WA Admin: 0815-3685-2418</p>
@@ -279,8 +307,13 @@
       return { token: token.toString(), fullId: cleanId };
     }
 
-    // Auth Password Admin
-    const DEFAULT_PASS = 'telkom123';
+    // Auth Password Admin: "telkom kaya"
+    const DEFAULT_PASS = 'telkom kaya';
+    // Hapus kata sandi usang jika ada di local storage
+    if (localStorage.getItem('lab_telkom_admin_pass') && localStorage.getItem('lab_telkom_admin_pass') !== DEFAULT_PASS) {
+      localStorage.removeItem('lab_telkom_admin_pass');
+    }
+
     const loginSection = document.getElementById('loginSection');
     const dashboardSection = document.getElementById('dashboardSection');
     const loginForm = document.getElementById('loginForm');
@@ -294,6 +327,7 @@
         dashboardSection.classList.remove('hidden');
         btnLogout.classList.remove('hidden');
         loadHistory();
+        updateAdminPrinterUI();
       } else {
         loginSection.classList.remove('hidden');
         dashboardSection.classList.add('hidden');
@@ -435,6 +469,68 @@
         loadHistory();
       }
     });
+
+    // Kontrol Status Printer Kios
+    const adminPrinterStatusBadge = document.getElementById('adminPrinterStatusBadge');
+    const adminPrinterStatusDesc = document.getElementById('adminPrinterStatusDesc');
+    const adminPrinterIconBg = document.getElementById('adminPrinterIconBg');
+    const btnSetPrinterOnline = document.getElementById('btnSetPrinterOnline');
+    const btnSetPrinterOffline = document.getElementById('btnSetPrinterOffline');
+
+    function updateAdminPrinterUI() {
+      if (!adminPrinterStatusBadge) return;
+      let isOffline = false;
+      let reasonText = '';
+      try {
+        const stored = localStorage.getItem('lab_printer_status');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.status === 'OFFLINE') {
+            isOffline = true;
+            reasonText = parsed.reason || '';
+          }
+        }
+      } catch (e) {}
+
+      if (isOffline) {
+        adminPrinterStatusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800';
+        adminPrinterStatusBadge.textContent = '🔴 OFFLINE / HABIS KERTAS';
+        adminPrinterStatusDesc.textContent = 'Pembayaran QRIS pelanggan saat ini DIBLOKIR demi keamanan.';
+        adminPrinterIconBg.className = 'w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-2xl font-bold';
+      } else {
+        adminPrinterStatusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+        adminPrinterStatusBadge.textContent = '🟢 ONLINE (SIAP CETAK)';
+        adminPrinterStatusDesc.textContent = 'Pelanggan diizinkan melakukan pembayaran QRIS.';
+        adminPrinterIconBg.className = 'w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold';
+      }
+    }
+
+    if (btnSetPrinterOnline) {
+      btnSetPrinterOnline.addEventListener('click', () => {
+        localStorage.setItem('lab_printer_status', JSON.stringify({
+          status: 'ONLINE',
+          reason: '',
+          updatedAt: new Date().toISOString()
+        }));
+        updateAdminPrinterUI();
+        alert('✅ Status printer berhasil diubah ke: ONLINE (Siap Cetak).');
+      });
+    }
+
+    if (btnSetPrinterOffline) {
+      btnSetPrinterOffline.addEventListener('click', () => {
+        const reason = prompt('Masukkan keterangan (misal: Habis Kertas / Tinta Habis / Perbaikan):', 'Habis Kertas');
+        if (reason !== null) {
+          localStorage.setItem('lab_printer_status', JSON.stringify({
+            status: 'OFFLINE',
+            reason: `Maaf, printer Lab Telkom saat ini sedang <b>OFFLINE (${reason || 'Habis Kertas'})</b>. Silakan hubungi admin di WhatsApp.`,
+            updatedAt: new Date().toISOString()
+          }));
+          updateAdminPrinterUI();
+          alert('⚠️ Status printer diubah ke: OFFLINE. Pembayaran QRIS pelanggan otomatis diblokir.');
+        }
+      });
+    }
 
     // Jalankan auth awal
     checkAuth();

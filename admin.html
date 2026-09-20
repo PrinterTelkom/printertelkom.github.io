@@ -8,320 +8,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-          }
-        }
-      }
-    }
-  </script>
-</head>
-<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col justify-between">
-
-  <!-- Header Admin -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-    <div class="max-w-5xl mx-auto px-4 py-3.5 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-red-500/30">
-          🛠️
-        </div>
-        <div>
-          <h1 class="text-lg font-extrabold text-slate-900 leading-tight">Portal Admin Printer Lab Telkom</h1>
-          <p class="text-xs text-slate-500">Validasi Token Pelanggan & Riwayat Cetak</p>
-        </div>
-      </div>
-      
-      <div class="flex items-center space-x-2">
-        <a href="index.html" class="text-xs font-bold text-slate-600 hover:text-red-600 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 transition">
-          ← Ke Halaman Kios
-        </a>
-        <button id="btnLogout" class="hidden text-xs font-bold text-red-600 hover:text-red-800 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition">
-          Keluar
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Login Section (Jika belum login) -->
-  <div id="loginSection" class="max-w-md mx-auto w-full px-4 py-16 flex-1 flex items-center justify-center">
-    <div class="bg-white rounded-3xl shadow-xl border border-slate-200 p-8 w-full text-center">
-      <div class="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
-        🔒
-      </div>
-      <h2 class="text-2xl font-black text-slate-900">Masuk Portal Admin</h2>
-      <p class="text-xs text-slate-500 mt-1 mb-6">Masukkan kata sandi admin untuk mengakses token dan riwayat cetak</p>
-      
-      <form id="loginForm" class="space-y-4">
-        <div>
-          <input type="password" id="adminPasswordInput" placeholder="Kata Sandi Admin" class="w-full text-center px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-red-600 focus:outline-none font-bold text-sm">
-        </div>
-        <p id="loginErrorMsg" class="hidden text-xs text-red-500 font-bold">❌ Kata sandi salah. Coba lagi.</p>
-        <button type="submit" class="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 transition">
-          Buka Dashboard
-        </button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Dashboard Section (Setelah Login) -->
-  <main id="dashboardSection" class="max-w-5xl mx-auto w-full px-4 py-8 flex-1 space-y-6 hidden">
-
-    <!-- Panel Kontrol Status Printer Kios -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-      <div class="flex items-center space-x-3">
-        <div id="adminPrinterIconBg" class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold">
-          🖨️
-        </div>
-        <div>
-          <div class="flex items-center space-x-2">
-            <h3 class="font-extrabold text-base text-slate-900">Status Kesiapan Printer:</h3>
-            <span id="adminPrinterStatusBadge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-              🟢 ONLINE (SIAP CETAK)
-            </span>
-          </div>
-          <p id="adminPrinterStatusDesc" class="text-xs text-slate-500 mt-0.5">Pelanggan diizinkan melakukan pembayaran QRIS.</p>
-        </div>
-      </div>
-      
-      <div class="flex items-center space-x-2 w-full sm:w-auto">
-        <button id="btnSetPrinterOnline" class="flex-1 sm:flex-initial px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1">
-          <span>🟢</span>
-          <span>Set SIAP CETAK</span>
-        </button>
-        <button id="btnSetPrinterOffline" class="flex-1 sm:flex-initial px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1">
-          <span>🔴</span>
-          <span>Set OFFLINE / HABIS</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Bagian Antrean Pesanan Pelanggan Menunggu Validasi (Realtime 1-Klik) -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-slate-100 gap-2 mb-4">
-        <div class="flex items-center space-x-2.5">
-          <span class="text-2xl">⏳</span>
-          <div>
-            <h3 class="font-extrabold text-base text-slate-900">Antrean Pesanan Pelanggan Menunggu Validasi</h3>
-            <p class="text-xs text-slate-500">Klik langsung tombol validasi pada kartu pesanan tanpa perlu mengetik ID manual!</p>
-          </div>
-        </div>
-        <div class="flex items-center space-x-2">
-          <span id="pendingBadgeCount" class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold">
-            0 Menunggu
-          </span>
-          <button id="btnRefreshPending" class="text-xs text-blue-600 hover:text-blue-800 font-semibold px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition flex items-center space-x-1" title="Perbarui Antrean">
-            <span>🔄</span>
-            <span>Segarkan</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Wadah List Pesanan Menunggu -->
-      <div id="pendingOrdersContainer" class="space-y-3">
-        <div class="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-          <p class="text-2xl mb-1">☕</p>
-          <p class="text-xs font-semibold text-slate-600">Tidak ada antrean pesanan saat ini.</p>
-          <p class="text-[11px] text-slate-400 mt-0.5">Saat pelanggan membuka QRIS di kios, pesanan otomatis muncul di sini secara realtime.</p>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Bagian 1: Generator & Cek Token Pesanan -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      
-      <div class="md:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <div class="flex items-center space-x-2 text-red-600 mb-2">
-          <span class="text-xl">🔑</span>
-          <h3 class="font-bold text-base text-slate-900">Cari Token Validasi Pelanggan</h3>
-        </div>
-        <p class="text-xs text-slate-500 mb-4">
-          Saat pelanggan mengirim bukti transfer via WA, masukkan <b>ID Pesanan</b> yang tertera di pesan WA pelanggan:
-        </p>
-
-        <div class="flex items-center space-x-3">
-          <input type="text" id="lookupOrderIdInput" placeholder="Contoh: PRN-382910 atau 382910" class="flex-1 px-4 py-3 bg-slate-50 border-2 border-slate-300 rounded-xl font-mono font-bold text-slate-800 uppercase focus:border-red-600 focus:outline-none">
-          <button id="btnLookupToken" class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow transition">
-            Lihat Token
-          </button>
-        </div>
-
-        <!-- Hasil Token & Verifikasi Halaman Muncul di Sini -->
-        <div id="tokenResultBox" class="hidden mt-5 space-y-4">
-          
-          <div class="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-              <div class="flex items-center space-x-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p class="text-xs font-bold text-emerald-800 uppercase tracking-wider">Token Validasi Pelanggan:</p>
-              </div>
-              <p id="generatedTokenText" class="text-4xl font-black text-emerald-700 font-mono tracking-widest mt-1">----</p>
-              <p id="orderIdBadge" class="text-xs font-mono font-bold text-emerald-600 mt-1">ID: #PRN-0000</p>
-            </div>
-            <div class="flex items-center space-x-2 w-full sm:w-auto">
-              <button id="btnCopyToken" class="w-full sm:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5">
-                <span>📋</span>
-                <span id="copyText">Salin Token</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Rincian Verifikasi Anti-Manipulasi Halaman -->
-          <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-            <div class="flex items-center space-x-1.5 text-xs font-bold text-slate-700 mb-2">
-              <span>🛡️</span>
-              <span>DATA ASLI DOKUMEN DARI SISTEM (ANTI-MANIPULASI WA):</span>
-            </div>
-            <div class="grid grid-cols-3 gap-2 text-center">
-              <div class="bg-white p-2.5 rounded-xl border border-slate-200">
-                <p class="text-[10px] text-slate-400 font-semibold uppercase">Halaman Asli</p>
-                <p id="verifiedPagesText" class="text-base font-black text-slate-800">0 Hal</p>
-              </div>
-              <div class="bg-white p-2.5 rounded-xl border border-slate-200">
-                <p class="text-[10px] text-slate-400 font-semibold uppercase">Rangkap (Copy)</p>
-                <p id="verifiedCopiesText" class="text-base font-black text-slate-800">1x</p>
-              </div>
-              <div class="bg-white p-2.5 rounded-xl border border-slate-200">
-                <p class="text-[10px] text-slate-400 font-semibold uppercase">Total Transfer Wajib</p>
-                <p id="verifiedCostText" class="text-base font-black text-emerald-600">Rp 0</p>
-              </div>
-            </div>
-            <p class="text-[11px] text-slate-500 mt-2.5 leading-tight">
-              💡 <b>Catatan Admin:</b> Pastikan nominal di bukti transfer WA bernilai minimal <span id="verifiedCostNotice" class="font-bold text-emerald-700">Rp 0</span>. Jika pelanggan mengaku halamannya lebih sedikit, token jangan diberikan!
-            </p>
-          </div>
-
-          <!-- Tombol Validasi 1-Klik Langsung ke Kios -->
-          <div class="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div>
-              <div class="flex items-center space-x-2">
-                <span class="text-base">⚡</span>
-                <p class="text-xs font-bold uppercase tracking-wider text-blue-100">Validasi Langsung (Tanpa Pelanggan Ketik Token):</p>
-              </div>
-              <p class="text-[11px] text-blue-100 mt-1">
-                Kios pelanggan akan otomatis mendeteksi persetujuan admin dan langsung memulai cetak!
-              </p>
-            </div>
-            <button id="btnDirectValidateAndPrint" class="w-full sm:w-auto px-5 py-3 bg-white hover:bg-blue-50 text-blue-700 font-extrabold text-xs rounded-xl shadow active:scale-95 transition flex items-center justify-center space-x-1.5 whitespace-nowrap">
-              <span>🚀 Validasi & Cetak Sekarang</span>
-            </button>
-          </div>
-
-          <div id="directValidateSuccessBanner" class="hidden p-3 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold text-center">
-            ✅ Sukses divalidasi! Kios pelanggan telah otomatis dialihkan ke status Berhasil Cetak.
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Kartu Master PIN Toko -->
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
-        <div>
-          <div class="flex items-center space-x-2 text-amber-600 mb-2">
-            <span class="text-xl">⭐</span>
-            <h3 class="font-bold text-base text-slate-900">Master PIN Toko</h3>
-          </div>
-          <p class="text-xs text-slate-500 leading-relaxed">
-            Jika Anda sedang sibuk melayani pembeli dan tidak sempat membuka web admin ini, Anda bisa langsung membalas WA pelanggan dengan Master PIN ini:
-          </p>
-        </div>
-        <div class="my-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-center">
-          <p class="text-[11px] font-bold text-amber-800 uppercase">PIN Master Cadangan</p>
-          <p class="text-3xl font-black text-amber-700 tracking-widest font-mono mt-1">2423</p>
-          <p class="text-[10px] text-amber-600 mt-1">*Selalu valid untuk semua order</p>
-        </div>
-        <p class="text-[11px] text-slate-400 text-center">Nomor WA Admin: 0815-3685-2418</p>
-      </div>
-
-    </div>
-
-    <!-- Bagian 2: Statistik Ringkas -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
-        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-2xl font-bold">
-          📄
-        </div>
-        <div>
-          <p class="text-xs text-slate-500 font-semibold">Total Transaksi</p>
-          <p id="statTotalOrders" class="text-2xl font-black text-slate-900">0</p>
-        </div>
-      </div>
-
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
-        <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-2xl font-bold">
-          📑
-        </div>
-        <div>
-          <p class="text-xs text-slate-500 font-semibold">Lembar Dicetak</p>
-          <p id="statTotalPages" class="text-2xl font-black text-slate-900">0 Hal</p>
-        </div>
-      </div>
-
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
-        <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-2xl font-bold">
-          💰
-        </div>
-        <div>
-          <p class="text-xs text-slate-500 font-semibold">Total Pendapatan</p>
-          <p id="statTotalRevenue" class="text-2xl font-black text-emerald-600">Rp 0</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bagian 3: Riwayat Cetak & Pembayaran -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-200 gap-3">
-        <div>
-          <h3 class="font-bold text-base text-slate-900 flex items-center space-x-2">
-            <span>📋</span>
-            <span>Riwayat Transaksi di Printer Lab Telkom</span>
-          </h3>
-          <p class="text-xs text-slate-500">Merekam semua dokumen yang telah divalidasi dan dicetak</p>
-        </div>
-        <div class="flex items-center space-x-2">
-          <button id="btnClearHistory" class="text-xs font-semibold text-red-600 hover:text-red-800 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition">
-            Hapus Riwayat
-          </button>
-        </div>
-      </div>
-
-      <!-- Tabel Riwayat -->
-      <div class="overflow-x-auto mt-4">
-        <table class="w-full text-left text-xs text-slate-600">
-          <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
-            <tr>
-              <th class="py-3 px-3">Waktu</th>
-              <th class="py-3 px-3">ID Pesanan</th>
-              <th class="py-3 px-3">Nama Dokumen</th>
-              <th class="py-3 px-3">Halaman</th>
-              <th class="py-3 px-3">Total Biaya</th>
-              <th class="py-3 px-3">Token Digunakan</th>
-              <th class="py-3 px-3 text-center">Status</th>
-            </tr>
-          </thead>
-          <tbody id="historyTableBody" class="divide-y divide-slate-100">
-            <tr>
-              <td colspan="7" class="py-8 text-center text-slate-400">
-                Belum ada transaksi tercatat.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-  </main>
-
-  <!-- Footer -->
-  <footer class="bg-white border-t border-slate-200 py-4 mt-8">
-    <div class="max-w-5xl mx-auto px-4 text-center text-xs text-slate-400">
-      <p>© 2026 Printer Lab Telkom. Portal Manajemen Khusus Admin.</p>
-    </div>
-  </footer>
-
     <script>
     // Backend Cloudflare Tunnel URL (Auto-Updated)
     const SERVER_URL = 'https://zshops-peninsula-broader-neighbors.trycloudflare.com';
@@ -349,31 +35,29 @@
       }
     }
 
-    loginForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (adminPasswordInput.value.trim() === DEFAULT_PASS) {
-        sessionStorage.setItem('lab_telkom_admin_auth', 'true');
-        loginErrorMsg.classList.add('hidden');
-        checkAuth();
-      } else {
-        loginErrorMsg.classList.remove('hidden');
-      }
-    });
-    btnLogout.addEventListener('click', () => { sessionStorage.removeItem('lab_telkom_admin_auth'); checkAuth(); });
+    if(loginForm) {
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (adminPasswordInput.value.trim() === DEFAULT_PASS) {
+          sessionStorage.setItem('lab_telkom_admin_auth', 'true');
+          loginErrorMsg.classList.add('hidden');
+          checkAuth();
+        } else {
+          loginErrorMsg.classList.remove('hidden');
+        }
+      });
+    }
+    if(btnLogout) {
+      btnLogout.addEventListener('click', () => { sessionStorage.removeItem('lab_telkom_admin_auth'); checkAuth(); });
+    }
 
-    // Lookup & Validasi (via API Lokal)
-    const lookupOrderIdInput = document.getElementById('lookupOrderIdInput');
-    const btnLookupToken = document.getElementById('btnLookupToken');
-    const tokenResultBox = document.getElementById('tokenResultBox');
-    
     // Status Printer
     const adminPrinterStatusBadge = document.getElementById('adminPrinterStatusBadge');
     const adminPrinterStatusDesc = document.getElementById('adminPrinterStatusDesc');
     const adminPrinterIconBg = document.getElementById('adminPrinterIconBg');
-    const btnSetPrinterOnline = document.getElementById('btnSetPrinterOnline');
-    const btnSetPrinterOffline = document.getElementById('btnSetPrinterOffline');
-
+    
     async function updateAdminPrinterUI() {
+      if(!adminPrinterStatusBadge) return;
       try {
         const res = await fetch(SERVER_URL + '/api/info');
         if (res.ok) {
@@ -416,22 +100,19 @@
 
         let html = '';
         pending.forEach(item => {
-          html += \
-          <div class="p-4 bg-gradient-to-r from-amber-50/50 to-orange-50/30 border-2 border-amber-200 hover:border-amber-400 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition shadow-sm">
-            <div class="flex items-center space-x-3 flex-1">
-              <div class="w-12 h-12 bg-amber-100 text-amber-800 rounded-xl flex items-center justify-center font-mono font-black text-sm">???</div>
-              <div>
-                <span class="font-mono font-black text-base text-slate-900">\</span>
-                <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold animate-pulse">Menunggu Validasi</span>
-                <p class="text-xs text-slate-600 mt-0.5 font-medium truncate">\ � <b>\ Hal</b> (\x copy)</p>
-                <p class="text-xs font-black text-emerald-700 mt-0.5">Total Tagihan: Rp \</p>
-              </div>
-            </div>
-            <div class="flex items-center space-x-2 w-full sm:w-auto">
-              <button onclick="executeRejectOrder('\')" class="px-3 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold text-xs rounded-xl">? Tolak</button>
-              <button onclick="executeDirectValidation('\')" class="flex-1 sm:flex-initial px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md">?? Validasi & Cetak</button>
-            </div>
-          </div>\;
+          html += '<div class="p-4 bg-gradient-to-r from-amber-50/50 to-orange-50/30 border-2 border-amber-200 hover:border-amber-400 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition shadow-sm">';
+          html += '<div class="flex items-center space-x-3 flex-1">';
+          html += '<div class="w-12 h-12 bg-amber-100 text-amber-800 rounded-xl flex items-center justify-center font-mono font-black text-sm">???</div>';
+          html += '<div>';
+          html += '<span class="font-mono font-black text-base text-slate-900">' + item.orderId + '</span>';
+          html += ' <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold animate-pulse">Menunggu Validasi</span>';
+          html += '<p class="text-xs text-slate-600 mt-0.5 font-medium truncate">' + (item.fileName||'-') + ' � <b>' + item.pages + ' Hal</b> (' + (item.copies || 1) + 'x copy)</p>';
+          html += '<p class="text-xs font-black text-emerald-700 mt-0.5">Total Tagihan: Rp ' + (item.totalCost || 0).toLocaleString('id-ID') + '</p>';
+          html += '</div></div>';
+          html += '<div class="flex items-center space-x-2 w-full sm:w-auto">';
+          html += '<button onclick="executeRejectOrder(\'' + item.orderId + '\')" class="px-3 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold text-xs rounded-xl">? Tolak</button>';
+          html += '<button onclick="executeDirectValidation(\'' + item.orderId + '\')" class="flex-1 sm:flex-initial px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md">?? Validasi & Cetak</button>';
+          html += '</div></div>';
         });
         pendingOrdersContainer.innerHTML = html;
       } catch(e) {}
@@ -439,7 +120,7 @@
     if (btnRefreshPending) btnRefreshPending.addEventListener('click', renderPendingOrders);
     setInterval(renderPendingOrders, 3000);
 
-    async function executeDirectValidation(orderId) {
+    window.executeDirectValidation = async function(orderId) {
       if (!confirm('Peringatan: Kertas akan langsung keluar di printer Lab sekarang! Lanjutkan?')) return;
       try {
         const res = await fetch(SERVER_URL + '/api/simulate-pay/' + orderId, { method: 'POST' });
@@ -448,7 +129,6 @@
           alert('? Sukses! Server Lab sedang memproses pencetakan dokumen ke EPSON secara instan.');
           renderPendingOrders();
           
-          // Catat history
           const history = JSON.parse(localStorage.getItem('lab_telkom_history') || '[]');
           history.unshift({
             date: new Date().toLocaleString('id-ID'),
@@ -463,7 +143,7 @@
       } catch(e) { alert('Gagal terhubung ke Server Lab.'); }
     }
 
-    async function executeRejectOrder(orderId) {
+    window.executeRejectOrder = async function(orderId) {
       if (!confirm('Tolak pesanan ' + orderId + '?')) return;
       try {
         await fetch(SERVER_URL + '/api/reject/' + orderId, { method: 'POST' });
@@ -474,27 +154,32 @@
     const historyTableBody = document.getElementById('historyTableBody');
     const statTotalOrders = document.getElementById('statTotalOrders');
     function loadHistory() {
+      if(!historyTableBody) return;
       const history = JSON.parse(localStorage.getItem('lab_telkom_history') || '[]');
-      statTotalOrders.textContent = history.length;
+      if(statTotalOrders) statTotalOrders.textContent = history.length;
       if (history.length === 0) {
         historyTableBody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-400">Belum ada transaksi.</td></tr>';
         return;
       }
       let html = '';
       history.forEach(item => {
-        html += \<tr class="hover:bg-slate-50"><td class="py-3 px-3 text-[11px]">\</td>
-        <td class="py-3 px-3 font-bold">\</td>
-        <td class="py-3 px-3 font-semibold">\</td>
-        <td class="py-3 px-3">\ Hal</td>
-        <td class="py-3 px-3 font-bold">Rp \</td>
-        <td class="py-3 px-3 font-bold text-emerald-700">\</td>
-        <td class="py-3 px-3"><span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">SELESAI</span></td></tr>\;
+        html += '<tr class="hover:bg-slate-50"><td class="py-3 px-3 text-[11px]">' + item.date + '</td>';
+        html += '<td class="py-3 px-3 font-bold">' + item.orderId + '</td>';
+        html += '<td class="py-3 px-3 font-semibold">' + item.fileName + '</td>';
+        html += '<td class="py-3 px-3">' + item.pages + ' Hal</td>';
+        html += '<td class="py-3 px-3 font-bold">Rp ' + (item.totalCost||0).toLocaleString('id-ID') + '</td>';
+        html += '<td class="py-3 px-3 font-bold text-emerald-700">' + item.tokenUsed + '</td>';
+        html += '<td class="py-3 px-3"><span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">SELESAI</span></td></tr>';
       });
       historyTableBody.innerHTML = html;
     }
-    document.getElementById('btnClearHistory').addEventListener('click', () => {
-      localStorage.removeItem('lab_telkom_history'); loadHistory();
-    });
+    
+    const btnClearHistory = document.getElementById('btnClearHistory');
+    if(btnClearHistory) {
+      btnClearHistory.addEventListener('click', () => {
+        localStorage.removeItem('lab_telkom_history'); loadHistory();
+      });
+    }
 
     checkAuth();
   </script>

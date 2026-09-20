@@ -371,47 +371,121 @@ btnProcessPayment.addEventListener('click', async () => {
     qrisQrcodeDiv.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrisString)}" class="w-48 h-48 mx-auto">`;
   }
 
-  // Buka Modal QRIS
+  // Buka Modal QRIS & Mulai Pantau Validasi Admin Realtime
   qrisModal.classList.remove('hidden');
+  startAutoValidationWatcher();
 });
 
 // Tutup Modal QRIS
 btnCloseModal.addEventListener('click', () => {
   qrisModal.classList.add('hidden');
+  if (autoValidationTimer) {
+    clearInterval(autoValidationTimer);
+    autoValidationTimer = null;
+  }
 });
 
-// Validasi Token dari Admin
+// --- SISTEM AUTO-VALIDASI REALTIME DARI ADMIN ---
+let autoValidationTimer = null;
+const syncChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('printer_lab_telkom_sync') : null;
+
+// Fungsi terpusat untuk eksekusi cetak & sukses transaksi
+function triggerSuccessPrint(tokenUsed = 'VALIDASI LANGSUNG ADMIN') {
+  if (!currentOrderId) return;
+  
+  if (autoValidationTimer) {
+    clearInterval(autoValidationTimer);
+    autoValidationTimer = null;
+  }
+
+  tokenErrorMsg.classList.add('hidden');
+  qrisModal.classList.add('hidden');
+  successModal.classList.remove('hidden');
+
+  // Catat transaksi sukses ke Riwayat Kios
+  saveToHistory({
+    date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    orderId: currentOrderId,
+    fileName: selectedFile ? selectedFile.name : 'dokumen.pdf',
+    pages: pageCount,
+    copies: copies,
+    totalCost: currentTotalCost,
+    tokenUsed: tokenUsed,
+    status: 'SUKSES DICETAK'
+  });
+
+  // Hapus flag validated lokal agar bersih
+  try {
+    localStorage.removeItem(`validated_order_${currentOrderId.toUpperCase()}`);
+  } catch(e) {}
+
+  // Buka jendela print dokumen ke EPSON secara otomatis
+  if (selectedFileUrl) {
+    const printWindow = window.open(selectedFileUrl, '_blank');
+    if (printWindow) {
+      printWindow.focus();
+      setTimeout(() => {
+        try { printWindow.print(); } catch (e) {}
+      }, 1000);
+    }
+  }
+}
+
+// 1. Dengar sinyal BroadcastChannel (Instan antar-tab browser di komputer Kios yang sama)
+if (syncChannel) {
+  syncChannel.onmessage = (e) => {
+    if (e.data && e.data.action === 'ORDER_VALIDATED') {
+      if (currentOrderId && e.data.orderId && e.data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
+        triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
+      }
+    }
+  };
+}
+
+// 2. Dengar sinyal window storage event
+window.addEventListener('storage', (e) => {
+  if (currentOrderId && e.key === `validated_order_${currentOrderId.toUpperCase()}`) {
+    triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
+  }
+});
+
+// 3. Polling watcher lokal setiap 1 detik selama modal QRIS terbuka
+function startAutoValidationWatcher() {
+  if (autoValidationTimer) clearInterval(autoValidationTimer);
+  autoValidationTimer = setInterval(() => {
+    if (!currentOrderId) return;
+    const validated = localStorage.getItem(`validated_order_${currentOrderId.toUpperCase()}`);
+    if (validated) {
+      triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
+    }
+  }, 1000);
+}
+
+// 4. Subscribe ke realtime Server-Sent Events (ntfy.sh) untuk notifikasi beda perangkat (HP Admin -> Kios)
+try {
+  const remoteSse = new EventSource('https://ntfy.sh/printer-lab-telkom-orders-2026/sse');
+  remoteSse.onmessage = (e) => {
+    try {
+      let data = JSON.parse(e.data);
+      if (typeof data.message === 'string') {
+        try { data = JSON.parse(data.message); } catch(err) {}
+      }
+      if (data && data.action === 'ORDER_VALIDATED' && data.orderId) {
+        if (currentOrderId && data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
+          triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
+        }
+      }
+    } catch(err) {}
+  };
+} catch(err) {}
+
+// Validasi Token Manual dari Pelanggan (Jika pelanggan memilih ketik token sendiri)
 function validateAndProceed() {
   const entered = tokenInput.value.trim();
   
   // Validasi: cocok dengan token order ini ATAU Master PIN admin yang selalu aktif
   if (entered === currentOrderToken || entered === MASTER_PIN) {
-    tokenErrorMsg.classList.add('hidden');
-    qrisModal.classList.add('hidden');
-    successModal.classList.remove('hidden');
-
-    // Catat transaksi sukses ke Riwayat
-    saveToHistory({
-      date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      orderId: currentOrderId,
-      fileName: selectedFile ? selectedFile.name : 'dokumen.pdf',
-      pages: pageCount,
-      copies: copies,
-      totalCost: currentTotalCost,
-      tokenUsed: entered,
-      status: 'SUKSES DICETAK'
-    });
-
-    // Buka jendela print dokumen ke EPSON
-    if (selectedFileUrl) {
-      const printWindow = window.open(selectedFileUrl, '_blank');
-      if (printWindow) {
-        printWindow.focus();
-        setTimeout(() => {
-          try { printWindow.print(); } catch (e) {}
-        }, 1000);
-      }
-    }
+    triggerSuccessPrint(entered);
   } else {
     tokenErrorMsg.classList.remove('hidden');
     tokenInput.focus();

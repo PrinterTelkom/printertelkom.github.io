@@ -8,7 +8,105 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] } } }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 selection:bg-blue-100 selection:text-blue-900">
+  
+  <!-- Navbar -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">???</div>
+        <h1 class="font-extrabold text-lg tracking-tight text-slate-900">Printer Lab Telkom <span class="text-blue-600">Admin</span></h1>
+      </div>
+      <button id="btnLogout" class="hidden text-sm font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg transition">Keluar</button>
+    </div>
+  </nav>
+
+  <!-- Login Section -->
+  <section id="loginSection" class="max-w-md mx-auto mt-20 px-4">
+    <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
+      <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">??</div>
+      <h2 class="text-xl font-extrabold text-slate-900 mb-1">Otorisasi Admin</h2>
+      <p class="text-sm text-slate-500 mb-6">Masukkan kata sandi untuk mengelola antrean.</p>
+      
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <input type="password" id="adminPasswordInput" class="w-full text-center px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold text-slate-700 placeholder-slate-400" placeholder="Kata Sandi..." required>
+        </div>
+        <p id="loginErrorMsg" class="hidden text-xs font-bold text-red-600 animate-pulse">Kata sandi salah!</p>
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition">Buka Dashboard</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Dashboard Section -->
+  <section id="dashboardSection" class="hidden max-w-5xl mx-auto px-4 py-8 space-y-6">
+    
+    <!-- Printer Status -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center space-x-4">
+        <div id="adminPrinterIconBg" class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-2xl">???</div>
+        <div>
+          <div class="flex items-center space-x-2 mb-1">
+            <h3 class="font-extrabold text-slate-900">Status Server Lokal:</h3>
+            <span id="adminPrinterStatusBadge" class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600">MEMUAT...</span>
+          </div>
+          <p id="adminPrinterStatusDesc" class="text-xs text-slate-500">Mengecek koneksi ke Kiosk PC Lab...</p>
+        </div>
+      </div>
+      <button id="btnRefreshPending" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition">?? Refresh Antrean</button>
+    </div>
+
+    <!-- Antrean Pesanan -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="font-extrabold text-slate-900 flex items-center gap-2">? Antrean Menunggu Validasi <span id="pendingBadgeCount" class="px-2 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px]">0</span></h3>
+          <p class="text-xs text-slate-500 mt-1">Pesanan yang sudah dibayar oleh pelanggan.</p>
+        </div>
+      </div>
+      <div id="pendingOrdersContainer" class="space-y-3">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+    <!-- Riwayat Transaksi -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="font-extrabold text-slate-900">?? Riwayat Transaksi (<span id="statTotalOrders">0</span>)</h3>
+          <p class="text-xs text-slate-500 mt-1">Dokumen yang telah berhasil dicetak.</p>
+        </div>
+        <button id="btnClearHistory" class="text-xs font-bold text-red-600 hover:text-red-700">Hapus Riwayat</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-slate-600">
+          <thead class="text-xs text-slate-500 bg-slate-50 uppercase font-bold border-b border-slate-100">
+            <tr>
+              <th class="py-3 px-3">Waktu</th>
+              <th class="py-3 px-3">ID Pesanan</th>
+              <th class="py-3 px-3">Nama Dokumen</th>
+              <th class="py-3 px-3">Halaman</th>
+              <th class="py-3 px-3">Total Biaya</th>
+              <th class="py-3 px-3">Metode</th>
+              <th class="py-3 px-3">Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody" class="divide-y divide-slate-100">
+            <!-- Injected via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <script>
     // Backend Cloudflare Tunnel URL (Auto-Updated)
     const SERVER_URL = 'https://dollar-oliver-collar-filter.trycloudflare.com';
 
@@ -62,18 +160,18 @@
         const res = await fetch(SERVER_URL + '/api/info');
         if (res.ok) {
           const data = await res.json();
-          adminPrinterStatusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
+          adminPrinterStatusBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800';
           adminPrinterStatusBadge.textContent = '?? ONLINE (' + data.selectedPrinter + ')';
           adminPrinterStatusDesc.textContent = 'Server Lab menyala dan siap mencetak.';
-          adminPrinterIconBg.className = 'w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold';
+          adminPrinterIconBg.className = 'w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold';
         } else {
           throw new Error('Offline');
         }
       } catch(e) {
-          adminPrinterStatusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800';
+          adminPrinterStatusBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800';
           adminPrinterStatusBadge.textContent = '?? OFFLINE / TERPUTUS';
           adminPrinterStatusDesc.textContent = 'Koneksi ke Server Lab terputus. Pastikan start-kiosk.bat berjalan.';
-          adminPrinterIconBg.className = 'w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-2xl font-bold';
+          adminPrinterIconBg.className = 'w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center text-2xl font-bold';
       }
     }
 
@@ -89,29 +187,29 @@
         if (!res.ok) return;
         const pending = await res.json();
         
-        pendingBadgeCount.textContent = pending.length + ' Menunggu';
+        pendingBadgeCount.textContent = pending.length;
         if (pending.length > 0) {
-          pendingBadgeCount.className = "px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-black animate-pulse";
+          pendingBadgeCount.className = "px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-xs font-black animate-pulse";
         } else {
-          pendingBadgeCount.className = "px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold";
+          pendingBadgeCount.className = "px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold";
           pendingOrdersContainer.innerHTML = '<div class="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200"><p class="text-2xl mb-1">?</p><p class="text-xs font-semibold text-slate-600">Tidak ada antrean pesanan saat ini.</p></div>';
           return;
         }
 
         let html = '';
         pending.forEach(item => {
-          html += '<div class="p-4 bg-gradient-to-r from-amber-50/50 to-orange-50/30 border-2 border-amber-200 hover:border-amber-400 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition shadow-sm">';
+          html += '<div class="p-4 bg-gradient-to-r from-amber-50/50 to-orange-50/30 border-2 border-amber-200 hover:border-amber-400 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition shadow-sm">';
           html += '<div class="flex items-center space-x-3 flex-1">';
-          html += '<div class="w-12 h-12 bg-amber-100 text-amber-800 rounded-xl flex items-center justify-center font-mono font-black text-sm">???</div>';
+          html += '<div class="w-10 h-10 bg-amber-100 text-amber-800 rounded-lg flex items-center justify-center font-mono font-black text-sm">???</div>';
           html += '<div>';
           html += '<span class="font-mono font-black text-base text-slate-900">' + item.orderId + '</span>';
-          html += ' <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold animate-pulse">Menunggu Validasi</span>';
-          html += '<p class="text-xs text-slate-600 mt-0.5 font-medium truncate">' + (item.fileName||'-') + ' � <b>' + item.pages + ' Hal</b> (' + (item.copies || 1) + 'x copy)</p>';
-          html += '<p class="text-xs font-black text-emerald-700 mt-0.5">Total Tagihan: Rp ' + (item.totalCost || 0).toLocaleString('id-ID') + '</p>';
+          html += ' <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold animate-pulse">Menunggu</span>';
+          html += '<p class="text-xs text-slate-600 mt-0.5 font-medium truncate">' + (item.fileName||'-') + ' � <b>' + item.pages + ' Hal</b> (' + (item.copies || 1) + 'x)</p>';
+          html += '<p class="text-xs font-black text-emerald-700 mt-0.5">Total: Rp ' + (item.totalCost || 0).toLocaleString('id-ID') + '</p>';
           html += '</div></div>';
           html += '<div class="flex items-center space-x-2 w-full sm:w-auto">';
-          html += '<button onclick="executeRejectOrder(\'' + item.orderId + '\')" class="px-3 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold text-xs rounded-xl">? Tolak</button>';
-          html += '<button onclick="executeDirectValidation(\'' + item.orderId + '\')" class="flex-1 sm:flex-initial px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md">?? Validasi & Cetak</button>';
+          html += '<button onclick="executeRejectOrder(\\'' + item.orderId + '\\')" class="px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-bold text-xs rounded-lg">? Tolak</button>';
+          html += '<button onclick="executeDirectValidation(\\'' + item.orderId + '\\')" class="flex-1 sm:flex-initial px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-lg shadow">?? Validasi & Cetak</button>';
           html += '</div></div>';
         });
         pendingOrdersContainer.innerHTML = html;

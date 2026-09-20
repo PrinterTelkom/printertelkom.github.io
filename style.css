@@ -50,3 +50,34 @@
 button, input {
   touch-action: manipulation;
 }
+
+/* Aturan Khusus Cetak Dokumen Langsung ke Printer */
+@media print {
+  body > *:not(#printArea) {
+    display: none !important;
+  }
+  #printArea {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+  #printArea .print-page {
+    width: 100%;
+    height: auto;
+    page-break-after: always;
+    page-break-inside: avoid;
+    break-after: page;
+    display: block;
+    margin: 0;
+    padding: 0;
+  }
+  @page {
+    margin: 0;
+    size: auto;
+  }
+}

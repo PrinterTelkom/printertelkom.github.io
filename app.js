@@ -79,6 +79,7 @@ let currentOrderId = null;
 let currentOrderToken = null;
 let currentTotalCost = 0;
 let qrcodeInstance = null;
+let currentPdfDoc = null;
 
 // Konfigurasi Admin WhatsApp & Token Master
 const ADMIN_WA = '6281536852418'; // 081536852418
@@ -119,7 +120,9 @@ const tokenErrorMsg = document.getElementById('tokenErrorMsg');
 
 // Success Modal
 const successModal = document.getElementById('successModal');
+const btnPrintAgain = document.getElementById('btnPrintAgain');
 const btnFinishOrder = document.getElementById('btnFinishOrder');
+const printArea = document.getElementById('printArea');
 
 // Format Rupiah
 function formatRupiah(amount) {
@@ -171,6 +174,7 @@ async function processPdfFile(file) {
     const arrayBuffer = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
+    currentPdfDoc = pdf;
     pageCount = pdf.numPages;
 
     pageCountDisplay.textContent = `${pageCount} Halaman`;
@@ -187,6 +191,7 @@ async function processPdfFile(file) {
 // Reset File
 function resetFile() {
   selectedFile = null;
+  currentPdfDoc = null;
   if (selectedFileUrl) {
     URL.revokeObjectURL(selectedFileUrl);
     selectedFileUrl = null;
@@ -371,6 +376,44 @@ btnProcessPayment.addEventListener('click', async () => {
     qrisQrcodeDiv.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrisString)}" class="w-48 h-48 mx-auto">`;
   }
 
+  // Simpan ke daftar antrean pending untuk Admin Portal
+  const pendingOrder = {
+    orderId: currentOrderId,
+    fileName: selectedFile ? selectedFile.name : 'dokumen.pdf',
+    pages: pageCount,
+    copies: copies,
+    totalCost: total,
+    createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    status: 'MENUNGGU'
+  };
+
+  try {
+    let pendingList = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
+    pendingList = pendingList.filter(p => p.orderId !== currentOrderId);
+    pendingList.unshift(pendingOrder);
+    localStorage.setItem('lab_pending_orders', JSON.stringify(pendingList));
+  } catch(e) {}
+
+  if (syncChannel) {
+    try {
+      syncChannel.postMessage({
+        action: 'NEW_PENDING_ORDER',
+        order: pendingOrder
+      });
+    } catch(e) {}
+  }
+
+  try {
+    fetch('https://ntfy.sh/printer-lab-telkom-orders-2026', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'NEW_PENDING_ORDER',
+        order: pendingOrder
+      })
+    }).catch(() => {});
+  } catch(e) {}
+
   // Buka Modal QRIS & Mulai Pantau Validasi Admin Realtime
   qrisModal.classList.remove('hidden');
   startAutoValidationWatcher();
@@ -388,6 +431,58 @@ btnCloseModal.addEventListener('click', () => {
 // --- SISTEM AUTO-VALIDASI REALTIME DARI ADMIN ---
 let autoValidationTimer = null;
 const syncChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('printer_lab_telkom_sync') : null;
+
+// Render PDF langsung ke elemen Canvas di DOM agar jendela dialog Print printer EPSON terbuka instan
+async function prepareAndPrintPdf() {
+  const pArea = document.getElementById('printArea');
+  if (!pArea) {
+    window.print();
+    return;
+  }
+
+  pArea.innerHTML = '<div style="padding:20px;text-align:center;font-size:16px;">Menyiapkan dokumen untuk cetak...</div>';
+
+  if (!currentPdfDoc && selectedFile) {
+    try {
+      const arrayBuffer = await selectedFile.arrayBuffer();
+      currentPdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    } catch (e) {
+      console.error('Gagal reload PDF:', e);
+    }
+  }
+
+  if (currentPdfDoc) {
+    try {
+      pArea.innerHTML = '';
+      const scale = 2.0; // Resolusi tinggi (300 DPI) agar tajam di kertas printer
+      for (let c = 0; c < copies; c++) {
+        for (let pageNum = 1; pageNum <= currentPdfDoc.numPages; pageNum++) {
+          const page = await currentPdfDoc.getPage(pageNum);
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          canvas.className = 'print-page';
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          pArea.appendChild(canvas);
+        }
+      }
+
+      // Dialog Print EPSON terbuka langsung tanpa membuka tab viewer terpisah
+      setTimeout(() => {
+        window.focus();
+        window.print();
+      }, 400);
+      return;
+    } catch (err) {
+      console.error('Error rendering print canvases:', err);
+    }
+  }
+
+  // Fallback standar
+  window.print();
+}
 
 // Fungsi terpusat untuk eksekusi cetak & sukses transaksi
 function triggerSuccessPrint(tokenUsed = 'VALIDASI LANGSUNG ADMIN') {
@@ -414,21 +509,40 @@ function triggerSuccessPrint(tokenUsed = 'VALIDASI LANGSUNG ADMIN') {
     status: 'SUKSES DICETAK'
   });
 
-  // Hapus flag validated lokal agar bersih
+  // Hapus dari antrean pending & flag validated lokal
+  try {
+    let pendingList = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
+    pendingList = pendingList.filter(p => p.orderId !== currentOrderId);
+    localStorage.setItem('lab_pending_orders', JSON.stringify(pendingList));
+  } catch(e) {}
+
   try {
     localStorage.removeItem(`validated_order_${currentOrderId.toUpperCase()}`);
   } catch(e) {}
 
-  // Buka jendela print dokumen ke EPSON secara otomatis
-  if (selectedFileUrl) {
-    const printWindow = window.open(selectedFileUrl, '_blank');
-    if (printWindow) {
-      printWindow.focus();
-      setTimeout(() => {
-        try { printWindow.print(); } catch (e) {}
-      }, 1000);
-    }
+  // Broadcast bahwa pesanan sudah selesai
+  if (syncChannel) {
+    try {
+      syncChannel.postMessage({
+        action: 'ORDER_COMPLETED',
+        orderId: currentOrderId
+      });
+    } catch(e) {}
   }
+
+  try {
+    fetch('https://ntfy.sh/printer-lab-telkom-orders-2026', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'ORDER_COMPLETED',
+        orderId: currentOrderId
+      })
+    }).catch(() => {});
+  } catch(e) {}
+
+  // Eksekusi cetak langsung ke printer
+  prepareAndPrintPdf();
 }
 
 // 1. Dengar sinyal BroadcastChannel (Instan antar-tab browser di komputer Kios yang sama)
@@ -499,6 +613,13 @@ tokenInput.addEventListener('keydown', (e) => {
     validateAndProceed();
   }
 });
+
+// Tombol Cetak Dokumen di Modal Sukses
+if (btnPrintAgain) {
+  btnPrintAgain.addEventListener('click', () => {
+    prepareAndPrintPdf();
+  });
+}
 
 // Tombol Selesai di Modal Sukses
 btnFinishOrder.addEventListener('click', () => {

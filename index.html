@@ -206,45 +206,49 @@
 
   </main>
 
-  <!-- Modal Pembayaran QRIS Dinamis -->
-  <div id="qrisModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-scale-up">
+  <!-- Modal Pembayaran QRIS Dinamis (Scrollable & Responsive) -->
+  <div id="qrisModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 overflow-y-auto p-3 sm:p-4 flex justify-center items-start sm:items-center hidden">
+    <div class="bg-white rounded-3xl max-w-sm sm:max-w-md w-full p-4 sm:p-6 text-center shadow-2xl relative my-auto max-h-[92vh] flex flex-col animate-scale-up">
       
       <!-- Close Button -->
-      <button id="btnCloseModal" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center">
+      <button id="btnCloseModal" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center z-10">
         ✕
       </button>
 
-      <!-- Badge Header -->
-      <div class="inline-flex items-center space-x-1 bg-red-50 border border-red-200 text-red-700 text-xs font-bold px-3 py-1 rounded-full mb-3">
-        <span class="w-2 h-2 rounded-full bg-red-600"></span>
-        <span>QRIS RESMI NASIONAL</span>
-      </div>
+      <!-- Scrollable Inner Content -->
+      <div class="overflow-y-auto pr-1 space-y-3 custom-scrollbar flex-1 text-center">
 
-      <h3 class="text-xl font-extrabold text-slate-900">Scan untuk Membayar</h3>
-      <p class="text-xs text-slate-500 mt-1">Buka aplikasi m-Banking atau e-Wallet favorit Anda</p>
+        <!-- Badge Header -->
+        <div class="inline-flex items-center space-x-1 bg-red-50 border border-red-200 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
+          <span class="w-2 h-2 rounded-full bg-red-600"></span>
+          <span>QRIS RESMI NASIONAL</span>
+        </div>
 
-      <!-- Informasi Merchant Resmi -->
-      <div class="my-2.5 py-2 px-3 bg-red-50/80 border border-red-200 rounded-xl text-xs">
-        <p class="font-extrabold text-slate-900 text-sm">LAB. TELEKOMUNIKASI UB, EDUKASI</p>
-        <p class="text-[11px] text-slate-600 font-mono mt-0.5">NMID: ID1026577429792 • Terminal: A01</p>
-      </div>
+        <div>
+          <h3 class="text-xl font-extrabold text-slate-900">Scan untuk Membayar</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Buka aplikasi m-Banking atau e-Wallet favorit Anda</p>
+        </div>
 
-      <!-- Total Bayar -->
-      <div class="my-2.5 py-2.5 px-4 bg-slate-50 rounded-2xl border border-slate-200">
-        <p class="text-xs text-slate-500">Total Tagihan Pas:</p>
-        <p id="modalAmount" class="text-3xl font-black text-slate-900 mt-0.5">Rp 0</p>
-        <p id="modalOrderId" class="text-[11px] font-mono text-slate-400 mt-0.5">ID: PRN-000000</p>
-      </div>
+        <!-- Informasi Merchant Resmi -->
+        <div class="py-2 px-3 bg-red-50/80 border border-red-200 rounded-xl text-xs">
+          <p class="font-extrabold text-slate-900 text-sm">LAB. TELEKOMUNIKASI UB, EDUKASI</p>
+          <p class="text-[11px] text-slate-600 font-mono mt-0.5">NMID: ID1026577429792 • Terminal: A01</p>
+        </div>
 
-      <!-- Wadah Gambar Poster QRIS Resmi -->
-      <div class="p-2 bg-white border-2 border-slate-200 rounded-2xl inline-block shadow-inner mb-2 max-w-[270px]">
-        <img id="officialQrisImg" src="qris.jpg" alt="QRIS Lab Telekomunikasi UB" class="w-full rounded-xl shadow-sm object-contain">
-        <div id="qrisQrcode" class="hidden"></div>
-      </div>
+        <!-- Total Bayar -->
+        <div class="py-2 px-4 bg-slate-50 rounded-2xl border border-slate-200">
+          <p class="text-xs text-slate-500">Total Tagihan Pas:</p>
+          <p id="modalAmount" class="text-3xl font-black text-slate-900 mt-0.5">Rp 0</p>
+          <p id="modalOrderId" class="text-[11px] font-mono text-slate-400 mt-0.5">ID: PRN-000000</p>
+        </div>
 
-      <!-- Langkah 1 & 2: Kirim Bukti ke WhatsApp Admin -->
-      <div class="space-y-3 text-left my-3">
+        <!-- Wadah Gambar Poster QRIS Resmi (Compact & Scan-Friendly) -->
+        <div class="p-2 bg-white border-2 border-slate-200 rounded-2xl inline-block shadow-inner max-w-[210px] sm:max-w-[230px]">
+          <img id="officialQrisImg" src="qris.jpg" alt="QRIS Lab Telekomunikasi UB" class="w-full rounded-xl shadow-sm object-contain">
+          <div id="qrisQrcode" class="hidden"></div>
+        </div>
+
+        <!-- Langkah 1 & 2: Kirim Bukti ke WhatsApp Admin -->
         <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-center">
           <p class="text-xs text-emerald-800 font-medium mb-2">Setelah transfer, kirim bukti bayar ke WA Admin untuk mendapatkan <b>Token Cetak</b>:</p>
           <a id="btnWhatsAppAdmin" href="#" target="_blank" class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2">
@@ -288,6 +292,7 @@
             ❌ Token tidak cocok. Silakan cek balasan WA admin.
           </p>
         </div>
+
       </div>
 
     </div>
@@ -313,8 +318,13 @@
         </div>
       </div>
 
-      <button id="btnFinishOrder" class="mt-6 w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition">
-        Cetak Dokumen Lain
+      <!-- Tombol Eksekusi Cetak Langsung -->
+      <button id="btnPrintAgain" class="mt-4 w-full py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold rounded-xl text-sm transition flex items-center justify-center space-x-2 shadow-lg shadow-blue-500/30">
+        <span>🖨️ Cetak Dokumen ke Printer Sekarang</span>
+      </button>
+
+      <button id="btnFinishOrder" class="mt-2.5 w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition">
+        Selesai / Cetak Dokumen Lain
       </button>
     </div>
   </div>
@@ -356,6 +366,9 @@
       </a>
     </div>
   </footer>
+
+  <!-- Area Render Dokumen untuk Pencetakan Langsung (Canvas Print) -->
+  <div id="printArea" class="hidden"></div>
 
   <script src="app.js"></script>
 </body>

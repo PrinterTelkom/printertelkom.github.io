@@ -90,19 +90,51 @@
           </button>
         </div>
 
-        <!-- Hasil Token Muncul di Sini -->
-        <div id="tokenResultBox" class="hidden mt-5 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            <p class="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Token Cetak Valid:</p>
-            <p id="generatedTokenText" class="text-4xl font-black text-emerald-700 font-mono tracking-widest mt-1">----</p>
-            <p id="orderIdBadge" class="text-[11px] font-mono text-emerald-600 mt-1">ID: PRN-000000</p>
+        <!-- Hasil Token & Verifikasi Halaman Muncul di Sini -->
+        <div id="tokenResultBox" class="hidden mt-5 space-y-4">
+          
+          <div class="p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <p class="text-xs font-bold text-emerald-800 uppercase tracking-wider">Token Validasi Pelanggan:</p>
+              </div>
+              <p id="generatedTokenText" class="text-4xl font-black text-emerald-700 font-mono tracking-widest mt-1">----</p>
+              <p id="orderIdBadge" class="text-xs font-mono font-bold text-emerald-600 mt-1">ID: #PRN-0000</p>
+            </div>
+            <div class="flex items-center space-x-2 w-full sm:w-auto">
+              <button id="btnCopyToken" class="w-full sm:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5">
+                <span>📋</span>
+                <span id="copyText">Salin Token</span>
+              </button>
+            </div>
           </div>
-          <div class="flex items-center space-x-2 w-full sm:w-auto">
-            <button id="btnCopyToken" class="flex-1 sm:flex-none px-4 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-800 font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center space-x-1">
-              <span>📋</span>
-              <span id="copyText">Salin Token</span>
-            </button>
+
+          <!-- Rincian Verifikasi Anti-Manipulasi Halaman -->
+          <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+            <div class="flex items-center space-x-1.5 text-xs font-bold text-slate-700 mb-2">
+              <span>🛡️</span>
+              <span>DATA ASLI DOKUMEN DARI SISTEM (ANTI-MANIPULASI WA):</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="bg-white p-2.5 rounded-xl border border-slate-200">
+                <p class="text-[10px] text-slate-400 font-semibold uppercase">Halaman Asli</p>
+                <p id="verifiedPagesText" class="text-base font-black text-slate-800">0 Hal</p>
+              </div>
+              <div class="bg-white p-2.5 rounded-xl border border-slate-200">
+                <p class="text-[10px] text-slate-400 font-semibold uppercase">Rangkap (Copy)</p>
+                <p id="verifiedCopiesText" class="text-base font-black text-slate-800">1x</p>
+              </div>
+              <div class="bg-white p-2.5 rounded-xl border border-slate-200">
+                <p class="text-[10px] text-slate-400 font-semibold uppercase">Total Transfer Wajib</p>
+                <p id="verifiedCostText" class="text-base font-black text-emerald-600">Rp 0</p>
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-2.5 leading-tight">
+              💡 <b>Catatan Admin:</b> Pastikan nominal di bukti transfer WA bernilai minimal <span id="verifiedCostNotice" class="font-bold text-emerald-700">Rp 0</span>. Jika pelanggan mengaku halamannya lebih sedikit, token jangan diberikan!
+            </p>
           </div>
+
         </div>
       </div>
 
@@ -212,10 +244,28 @@
   </footer>
 
   <script>
+    const SECRET_CIPHER_KEY = 4257;
+    const CIPHER_INVERSE = 73;
+
+    // Decode ID Pesanan 4-digit untuk mengekstrak halaman dan rangkap asli
+    function decodeOrderId(orderIdStr) {
+      const clean = orderIdStr.toUpperCase().replace('PRN-', '').replace('#', '').trim();
+      const cipher = parseInt(clean, 10);
+      if (isNaN(cipher)) return null;
+
+      const diff = (cipher - SECRET_CIPHER_KEY + 10000) % 10000;
+      const packed = (diff * CIPHER_INVERSE) % 10000;
+      const copies = packed % 10;
+      const pages = Math.floor(packed / 10);
+
+      if (copies < 1 || pages < 1) return null;
+      const totalCost = pages * copies * 1000;
+      return { pages, copies, totalCost, normalizedId: `PRN-${clean.padStart(4, '0')}` };
+    }
+
     // Algoritma Token Deterministik Rahasia Lab Telkom
     function generateOrderToken(orderId) {
-      // Normalisasi format ID (jika user hanya ketik angka)
-      let cleanId = orderId.toUpperCase().trim();
+      let cleanId = orderId.toUpperCase().replace('#', '').trim();
       if (!cleanId.startsWith('PRN-')) {
         cleanId = `PRN-${cleanId}`;
       }
@@ -272,12 +322,16 @@
       checkAuth();
     });
 
-    // Lookup Token
+    // Lookup Token & Verifikasi Halaman
     const lookupOrderIdInput = document.getElementById('lookupOrderIdInput');
     const btnLookupToken = document.getElementById('btnLookupToken');
     const tokenResultBox = document.getElementById('tokenResultBox');
     const generatedTokenText = document.getElementById('generatedTokenText');
     const orderIdBadge = document.getElementById('orderIdBadge');
+    const verifiedPagesText = document.getElementById('verifiedPagesText');
+    const verifiedCopiesText = document.getElementById('verifiedCopiesText');
+    const verifiedCostText = document.getElementById('verifiedCostText');
+    const verifiedCostNotice = document.getElementById('verifiedCostNotice');
     const btnCopyToken = document.getElementById('btnCopyToken');
     const copyText = document.getElementById('copyText');
 
@@ -289,8 +343,23 @@
       }
 
       const res = generateOrderToken(val);
+      const decoded = decodeOrderId(val);
+
       generatedTokenText.textContent = res.token;
       orderIdBadge.textContent = `ID Pesanan: #${res.fullId}`;
+
+      if (decoded) {
+        verifiedPagesText.textContent = `${decoded.pages} Hal`;
+        verifiedCopiesText.textContent = `${decoded.copies}x`;
+        verifiedCostText.textContent = `Rp ${decoded.totalCost.toLocaleString('id-ID')}`;
+        verifiedCostNotice.textContent = `Rp ${decoded.totalCost.toLocaleString('id-ID')}`;
+      } else {
+        verifiedPagesText.textContent = `Manual`;
+        verifiedCopiesText.textContent = `-`;
+        verifiedCostText.textContent = `Cek WA`;
+        verifiedCostNotice.textContent = `sesuai pesanan`;
+      }
+
       tokenResultBox.classList.remove('hidden');
     }
 

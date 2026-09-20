@@ -299,6 +299,35 @@ btnProcessPayment.addEventListener('click', async () => {
     tokenInput.value = '';
     tokenErrorMsg.classList.add('hidden');
 
+    // Broadcast pesanan baru ke Admin secara realtime (ntfy.sh, localStorage, channel)
+    const pendingOrder = {
+      orderId: currentOrderId,
+      fileName: selectedFile ? selectedFile.name : 'dokumen.pdf',
+      pages: pageCount,
+      copies: copies,
+      totalCost: total,
+      createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      status: 'MENUNGGU'
+    };
+
+    try {
+      let pendingList = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
+      pendingList = pendingList.filter(p => p.orderId !== currentOrderId);
+      pendingList.unshift(pendingOrder);
+      localStorage.setItem('lab_pending_orders', JSON.stringify(pendingList));
+    } catch(e) {}
+
+    try {
+      fetch('https://ntfy.sh/printer-lab-telkom-orders-2026', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'NEW_PENDING_ORDER',
+          order: pendingOrder
+        })
+      }).catch(() => {});
+    } catch(e) {}
+
     // Buka Modal & mulai polling
     qrisModal.classList.remove('hidden');
     pollOrderStatus(currentOrderId, serverUrl);

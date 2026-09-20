@@ -62,6 +62,18 @@ function generateDynamicQRIS(amount, merchantName = "PRINTER LAB TELKOM", orderI
   return dataForCRC + checksum;
 }
 
+// Algoritma Encode ID Pesanan 4-Digit (Mengunci jumlah halaman & copy anti-manipulasi)
+const SECRET_CIPHER_KEY = 4257;
+const CIPHER_MULTIPLIER = 137;
+
+function encodeOrderId(pages, copies = 1) {
+  const safeCopies = Math.min(Math.max(copies, 1), 9);
+  const safePages = Math.min(Math.max(pages, 1), 999);
+  const packed = safePages * 10 + safeCopies;
+  const cipher = (packed * CIPHER_MULTIPLIER + SECRET_CIPHER_KEY) % 10000;
+  return `PRN-${cipher.toString().padStart(4, '0')}`;
+}
+
 // Algoritma Token Deterministik Rahasia Lab Telkom
 function generateOrderToken(orderId) {
   let hash = 0;
@@ -255,7 +267,8 @@ copiesInput.addEventListener('input', () => {
 btnProcessPayment.addEventListener('click', () => {
   if (!selectedFile || pageCount <= 0) return;
 
-  currentOrderId = `PRN-${Date.now().toString().slice(-6)}`;
+  // ID Pesanan 4-digit unik yang mengunci jumlah halaman dan rangkap secara kriptografis
+  currentOrderId = encodeOrderId(pageCount, copies);
   // Token dihitung dengan rumus rahasia Lab Telkom
   currentOrderToken = generateOrderToken(currentOrderId);
   const total = pageCount * PRICE_PER_PAGE * copies;
@@ -265,10 +278,10 @@ btnProcessPayment.addEventListener('click', () => {
 
   // Update Tampilan Modal
   modalAmount.textContent = formatRupiah(total);
-  modalOrderId.textContent = `ID ORDER: ${currentOrderId}`;
+  modalOrderId.textContent = `ID ORDER: #${currentOrderId}`;
 
   // Link WhatsApp Admin Aman: HANYA BERISI ID PESANAN (KODE TOKEN TIDAK DICANTUMKAN!)
-  const waMessage = `Halo Admin Printer Lab Telkom,\nSaya sudah transfer ${formatRupiah(total)} untuk cetak dokumen "${selectedFile.name}" (${pageCount} hal x ${copies} copy).\n\nID Pesanan: #${currentOrderId}\n\nMohon dicek bukti transfer saya dan minta token cetaknya ya min! 🙏`;
+  const waMessage = `Halo Admin Printer Lab Telkom,\nSaya sudah transfer ${formatRupiah(total)} untuk cetak dokumen "${selectedFile.name}".\n\nID Pesanan: #${currentOrderId}\n\nMohon dicek bukti transfer saya dan kirimkan token cetaknya ya min! 🙏`;
   btnWhatsAppAdmin.href = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(waMessage)}`;
 
   // Reset form input token

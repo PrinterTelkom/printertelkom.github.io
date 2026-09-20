@@ -99,7 +99,7 @@ let qrcodeInstance = null;
 
 // Konfigurasi Admin WhatsApp & Token Master
 const ADMIN_WA = '6281536852418'; // 081536852418
-const MASTER_PIN = '2418'; // PIN Master cadangan admin
+const MASTER_PIN = '2423'; // PIN Master cadangan admin yang selalu aktif
 
 // DOM Elements
 const dropZone = document.getElementById('dropZone');
@@ -116,6 +116,13 @@ const totalCostDisplay = document.getElementById('totalCostDisplay');
 const btnProcessPayment = document.getElementById('btnProcessPayment');
 const btnRemoveFile = document.getElementById('btnRemoveFile');
 
+// Status Printer Badge & Offline Modal
+const printerBadge = document.getElementById('printerBadge');
+const printerNameText = document.getElementById('printerNameText');
+const printerOfflineModal = document.getElementById('printerOfflineModal');
+const printerOfflineReason = document.getElementById('printerOfflineReason');
+const btnCloseOfflineModal = document.getElementById('btnCloseOfflineModal');
+
 // Modal Elements
 const qrisModal = document.getElementById('qrisModal');
 const btnCloseModal = document.getElementById('btnCloseModal');
@@ -126,7 +133,6 @@ const btnWhatsAppAdmin = document.getElementById('btnWhatsAppAdmin');
 const tokenInput = document.getElementById('tokenInput');
 const btnValidateToken = document.getElementById('btnValidateToken');
 const tokenErrorMsg = document.getElementById('tokenErrorMsg');
-const btnSimulatePay = document.getElementById('btnSimulatePay');
 
 // Success Modal
 const successModal = document.getElementById('successModal');
@@ -263,13 +269,90 @@ copiesInput.addEventListener('input', () => {
   updateCalculation();
 });
 
-// Proses Pembayaran: Buat QRIS Dinamis & Link WhatsApp Aman (Tanpa Bocor Token)
-btnProcessPayment.addEventListener('click', () => {
+// --- SISTEM PENGECEKAN STATUS PRINTER ---
+async function checkPrinterStatus() {
+  // 1. Cek penyimpanan lokal (jika diubah admin di perangkat/browser yang sama)
+  try {
+    const localStatus = localStorage.getItem('lab_printer_status');
+    if (localStatus) {
+      const parsed = JSON.parse(localStatus);
+      if (parsed.status === 'OFFLINE') {
+        return {
+          online: false,
+          reason: parsed.reason || 'Maaf, printer Lab Telkom saat ini sedang <b>OFFLINE / Habis Kertas</b> atau dalam pemeliharaan.'
+        };
+      }
+    }
+  } catch (e) {}
+
+  // 2. Cek status.json dari server/GitHub Pages
+  try {
+    const res = await fetch('./status.json?cache=' + Date.now(), { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status && data.status.toUpperCase() === 'OFFLINE') {
+        return {
+          online: false,
+          reason: data.message || 'Maaf, printer Lab Telkom saat ini sedang <b>OFFLINE / Habis Kertas</b>.'
+        };
+      }
+    }
+  } catch (err) {
+    console.log('Status file check skipped:', err);
+  }
+
+  return { online: true, message: 'EPSON Ready' };
+}
+
+// Update tampilan badge printer di header
+async function updatePrinterBadge() {
+  if (!printerBadge) return;
+  const status = await checkPrinterStatus();
+  if (status.online) {
+    printerBadge.className = "flex items-center space-x-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full text-xs font-semibold text-emerald-700";
+    printerBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span id="printerNameText">EPSON Ready</span>`;
+  } else {
+    printerBadge.className = "flex items-center space-x-2 bg-red-50 border border-red-200 px-3 py-1.5 rounded-full text-xs font-semibold text-red-700";
+    printerBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span id="printerNameText">Printer Offline</span>`;
+  }
+}
+
+// Jalankan update badge saat halaman dibuka
+updatePrinterBadge();
+
+// Tombol Tutup Modal Peringatan Offline
+if (btnCloseOfflineModal) {
+  btnCloseOfflineModal.addEventListener('click', () => {
+    printerOfflineModal.classList.add('hidden');
+  });
+}
+
+// Proses Pembayaran: Cek Kesiapan Printer -> Buat QRIS Dinamis & Link WhatsApp Aman
+btnProcessPayment.addEventListener('click', async () => {
   if (!selectedFile || pageCount <= 0) return;
 
-  // ID Pesanan 4-digit unik yang mengunci jumlah halaman dan rangkap secara kriptografis
+  // 1. CEK DAHULU APAKAH PRINTER AKTIF SEBELUM LANJUT KE PEMBAYARAN
+  const originalBtnHtml = btnProcessPayment.innerHTML;
+  btnProcessPayment.disabled = true;
+  btnProcessPayment.innerHTML = `<span>Mengecek status printer...</span><span class="animate-pulse">⏳</span>`;
+
+  const printerStatus = await checkPrinterStatus();
+  btnProcessPayment.disabled = false;
+  btnProcessPayment.innerHTML = originalBtnHtml;
+
+  if (!printerStatus.online) {
+    if (printerOfflineReason) {
+      printerOfflineReason.innerHTML = printerStatus.reason;
+    }
+    if (printerOfflineModal) {
+      printerOfflineModal.classList.remove('hidden');
+    }
+    updatePrinterBadge();
+    return; // BLOKIR PEMBAYARAN: Tidak menampilkan QRIS jika printer offline
+  }
+
+  // 2. JIKA PRINTER AKTIF: Lanjut ke pembuatan QRIS & ID Pesanan
   currentOrderId = encodeOrderId(pageCount, copies);
-  // Token dihitung dengan rumus rahasia Lab Telkom
   currentOrderToken = generateOrderToken(currentOrderId);
   const total = pageCount * PRICE_PER_PAGE * copies;
 
@@ -318,7 +401,7 @@ btnCloseModal.addEventListener('click', () => {
 function validateAndProceed() {
   const entered = tokenInput.value.trim();
   
-  // Validasi: cocok dengan token order ini ATAU Master PIN admin
+  // Validasi: cocok dengan token order ini ATAU Master PIN admin yang selalu aktif
   if (entered === currentOrderToken || entered === MASTER_PIN) {
     tokenErrorMsg.classList.add('hidden');
     qrisModal.classList.add('hidden');
@@ -358,12 +441,6 @@ tokenInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     validateAndProceed();
   }
-});
-
-// Tombol Uji Coba Cepat (Simulator tanpa WA)
-btnSimulatePay.addEventListener('click', () => {
-  tokenInput.value = currentOrderToken || MASTER_PIN;
-  validateAndProceed();
 });
 
 // Tombol Selesai di Modal Sukses

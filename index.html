@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kios Cetak Mandiri - Bayar QRIS</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PDF.js CDN untuk kalkulasi jumlah halaman langsung di browser -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col justify-between">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xl shadow-md shadow-blue-500/30">
+          🖨️
+        </div>
+        <div>
+          <h1 class="text-lg font-extrabold text-slate-900 leading-tight">Kios Cetak Mandiri</h1>
+          <p class="text-xs text-slate-500">Cetak Dokumen & Bayar Otomatis via QRIS</p>
+        </div>
+      </div>
+      
+      <!-- Status Printer Badge -->
+      <div id="printerBadge" class="flex items-center space-x-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full text-xs font-semibold text-emerald-700">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span id="printerNameText">EPSON L3210</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-2xl mx-auto w-full px-4 py-8 flex-1">
+
+    <!-- Card Upload -->
+    <div class="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200 p-6 md:p-8 transition-all">
+      
+      <div class="text-center mb-6">
+        <span class="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2">
+          Tarif: Rp 1.000 / Halaman
+        </span>
+        <h2 class="text-2xl font-bold text-slate-900">Upload Dokumen PDF</h2>
+        <p class="text-sm text-slate-500 mt-1">Sistem akan menghitung jumlah halaman dan total biaya secara otomatis</p>
+      </div>
+
+      <!-- Dropzone -->
+      <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-8 text-center cursor-pointer transition-all bg-slate-50/50 hover:bg-blue-50/30 group">
+        <input type="file" id="fileInput" accept="application/pdf,.pdf" class="hidden">
+        
+        <div class="flex flex-col items-center justify-center space-y-3">
+          <div class="w-16 h-16 rounded-2xl bg-blue-100/70 text-blue-600 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform duration-200 shadow-sm">
+            📄
+          </div>
+          <div>
+            <p class="text-base font-bold text-slate-800">
+              <span class="text-blue-600 hover:underline">Pilih file PDF</span> atau tarik ke sini
+            </p>
+            <p class="text-xs text-slate-400 mt-1">Mendukung format .PDF (Maks. 50 MB)</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- File Details & Calculation Panel (Hidden initially) -->
+      <div id="fileDetailPanel" class="hidden mt-6 space-y-5 animate-fade-in">
+        <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+          <div class="flex items-center space-x-3 overflow-hidden">
+            <span class="text-2xl">📑</span>
+            <div class="truncate">
+              <p id="fileNameDisplay" class="font-bold text-slate-800 text-sm truncate">dokumen.pdf</p>
+              <p id="fileSizeDisplay" class="text-xs text-slate-500">1.2 MB</p>
+            </div>
+          </div>
+          <button id="btnRemoveFile" class="text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-1 rounded hover:bg-red-50 transition">
+            Ganti File
+          </button>
+        </div>
+
+        <!-- Options: Rangkap (Copies) -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <label class="text-xs font-semibold text-slate-500 block mb-1">Jumlah Halaman</label>
+            <p id="pageCountDisplay" class="text-xl font-extrabold text-slate-800">0 Halaman</p>
+          </div>
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <label for="copiesInput" class="text-xs font-semibold text-slate-500 block mb-1">Jumlah Rangkap (Copy)</label>
+            <div class="flex items-center space-x-2">
+              <button id="btnMinusCopy" class="w-8 h-8 rounded-lg bg-slate-200 hover:bg-slate-300 font-bold text-slate-700 flex items-center justify-center">-</button>
+              <input type="number" id="copiesInput" value="1" min="1" max="50" class="w-12 text-center font-bold text-slate-800 bg-white border border-slate-300 rounded-lg py-1">
+              <button id="btnPlusCopy" class="w-8 h-8 rounded-lg bg-slate-200 hover:bg-slate-300 font-bold text-slate-700 flex items-center justify-center">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rincian Biaya -->
+        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5">
+          <div class="flex justify-between items-center text-sm text-slate-600 mb-2">
+            <span>Perhitungan Tarif:</span>
+            <span id="formulaText" class="font-mono font-medium">0 hal x Rp 1.000 x 1 copy</span>
+          </div>
+          <div class="h-px bg-blue-200 my-2"></div>
+          <div class="flex justify-between items-center">
+            <span class="text-base font-bold text-slate-800">Total Pembayaran:</span>
+            <span id="totalCostDisplay" class="text-3xl font-extrabold text-blue-700">Rp 0</span>
+          </div>
+        </div>
+
+        <!-- Tombol Lanjut ke QRIS -->
+        <button id="btnProcessPayment" class="w-full py-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-lg rounded-xl shadow-lg shadow-blue-500/30 transition flex items-center justify-center space-x-2">
+          <span>Lanjut Bayar dengan QRIS</span>
+          <span>💳</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Instruksi Singkat -->
+    <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div class="text-2xl mb-1">1️⃣</div>
+        <h3 class="font-bold text-sm text-slate-800">Pilih Dokumen</h3>
+        <p class="text-xs text-slate-500 mt-1">Upload file PDF yang ingin Anda cetak.</p>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div class="text-2xl mb-1">2️⃣</div>
+        <h3 class="font-bold text-sm text-slate-800">Scan QRIS</h3>
+        <p class="text-xs text-slate-500 mt-1">Bayar dengan GoPay, OVO, Dana, BCA, dll.</p>
+      </div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div class="text-2xl mb-1">3️⃣</div>
+        <h3 class="font-bold text-sm text-slate-800">Ambil Hasil Cetak</h3>
+        <p class="text-xs text-slate-500 mt-1">Printer Epson langsung mencetak otomatis.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modal Pembayaran QRIS Dinamis -->
+  <div id="qrisModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-scale-up">
+      
+      <!-- Close Button -->
+      <button id="btnCloseModal" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center">
+        ✕
+      </button>
+
+      <!-- Badge Header -->
+      <div class="inline-flex items-center space-x-1 bg-red-50 border border-red-200 text-red-700 text-xs font-bold px-3 py-1 rounded-full mb-3">
+        <span class="w-2 h-2 rounded-full bg-red-600"></span>
+        <span>QRIS RESMI NASIONAL</span>
+      </div>
+
+      <h3 class="text-xl font-extrabold text-slate-900">Scan untuk Membayar</h3>
+      <p class="text-xs text-slate-500 mt-1">Buka aplikasi m-Banking atau e-Wallet favorit Anda</p>
+
+      <!-- Total Bayar -->
+      <div class="my-4 py-3 px-4 bg-slate-50 rounded-2xl border border-slate-200">
+        <p class="text-xs text-slate-500">Total Tagihan Pas:</p>
+        <p id="modalAmount" class="text-3xl font-black text-slate-900 mt-0.5">Rp 0</p>
+        <p id="modalOrderId" class="text-[11px] font-mono text-slate-400 mt-1">ID: PRN-000000</p>
+      </div>
+
+      <!-- Wadah Barcode QRIS -->
+      <div class="p-3 bg-white border-2 border-slate-200 rounded-2xl inline-block shadow-inner mb-3">
+        <img id="qrisImg" src="" alt="QRIS Code" class="w-56 h-56 mx-auto object-contain">
+      </div>
+
+      <!-- Status Indicator -->
+      <div id="paymentStatusBox" class="flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">
+        <svg class="animate-spin h-4 w-4 text-amber-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        <span id="paymentStatusText">Menunggu pembayaran Anda...</span>
+      </div>
+
+      <!-- Tombol Uji Coba Simulasi Lunas (Testing Simulator) -->
+      <div class="mt-4 pt-3 border-t border-slate-100">
+        <button id="btnSimulatePay" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-1">
+          <span>⚡ [UJI COBA] Simulasi Bayar Lunas</span>
+        </button>
+        <p class="text-[10px] text-slate-400 mt-1.5">*Gunakan tombol di atas untuk menguji respons mesin printer</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Modal Sukses Cetak -->
+  <div id="successModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-8 text-center shadow-2xl animate-scale-up">
+      <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-4 animate-bounce">
+        ✅
+      </div>
+      <h3 class="text-2xl font-black text-slate-900">Pembayaran Sukses!</h3>
+      <p class="text-sm text-slate-600 mt-2">Dokumen Anda sedang diproses dan dicetak ke mesin printer EPSON.</p>
+      
+      <div class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left text-xs space-y-1.5">
+        <div class="flex justify-between">
+          <span class="text-slate-500">Status Printer:</span>
+          <span class="font-bold text-emerald-600">Mencetak...</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-500">Silakan:</span>
+          <span class="font-bold text-slate-800">Ambil kertas di baki keluar</span>
+        </div>
+      </div>
+
+      <button id="btnFinishOrder" class="mt-6 w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm transition">
+        Cetak Dokumen Lain
+      </button>
+    </div>
+  </div>
+
+  <!-- Footer / Config Settings (bisa disembunyikan/diatur untuk GitHub Pages) -->
+  <footer class="bg-white border-t border-slate-200 py-4">
+    <div class="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+      <p>© 2026 Kios Cetak Mandiri EPSON. Semua Hak Dilindungi.</p>
+      <div class="flex items-center space-x-2">
+        <span>Backend API:</span>
+        <input type="text" id="apiEndpointInput" class="border border-slate-300 rounded px-2 py-0.5 text-slate-600 text-xs w-48 font-mono focus:outline-blue-500" value="http://localhost:3000">
+        <button id="btnSaveApi" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-semibold transition">Simpan</button>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

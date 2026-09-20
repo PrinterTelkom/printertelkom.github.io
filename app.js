@@ -1,5 +1,5 @@
 // Backend Cloudflare Tunnel URL (Auto-Updated)
-const SERVER_URL = 'https://dollar-oliver-collar-filter.trycloudflare.com';
+const SERVER_URL = 'https://blogs-consequence-responsible-strongly.trycloudflare.com';
 
 // Inisialisasi PDF.js Worker untuk hitung halaman di Client
 if (window.pdfjsLib) {

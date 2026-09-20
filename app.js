@@ -24,7 +24,7 @@ function formatTLV(tag, value) {
   return `${tag}${len}${value}`;
 }
 
-function generateDynamicQRIS(amount, merchantName = "PRINTER TELKOM", orderId = "") {
+function generateDynamicQRIS(amount, merchantName = "PRINTER LAB TELKOM", orderId = "") {
   const amountStr = Math.round(amount).toString();
   const tag54 = formatTLV("54", amountStr); // Tag 54: Transaction Amount
   
@@ -60,6 +60,18 @@ function generateDynamicQRIS(amount, merchantName = "PRINTER TELKOM", orderId = 
   const dataForCRC = qrisData + "6304";
   const checksum = calculateCRC16(dataForCRC);
   return dataForCRC + checksum;
+}
+
+// Algoritma Token Deterministik Rahasia Lab Telkom
+function generateOrderToken(orderId) {
+  let hash = 0;
+  const seed = `LABTELKOM_${orderId}_SEC2026`;
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const token = (Math.abs(hash) % 9000) + 1000;
+  return token.toString();
 }
 
 // State Aplikasi
@@ -118,6 +130,18 @@ function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Simpan transaksi ke Riwayat Lab Telkom
+function saveToHistory(orderData) {
+  try {
+    const history = JSON.parse(localStorage.getItem('lab_telkom_history') || '[]');
+    history.unshift(orderData);
+    if (history.length > 50) history.pop(); // simpan 50 riwayat terakhir
+    localStorage.setItem('lab_telkom_history', JSON.stringify(history));
+  } catch (e) {
+    console.warn('Gagal menyimpan riwayat:', e);
+  }
 }
 
 // Update Kalkulasi Harga
@@ -179,16 +203,16 @@ dropZone.addEventListener('click', () => fileInput.click());
 
 dropZone.addEventListener('dragover', (e) => {
   e.preventDefault();
-  dropZone.classList.add('border-blue-600', 'bg-blue-50/50');
+  dropZone.classList.add('border-red-600', 'bg-red-50/50');
 });
 
 dropZone.addEventListener('dragleave', () => {
-  dropZone.classList.remove('border-blue-600', 'bg-blue-50/50');
+  dropZone.classList.remove('border-red-600', 'bg-red-50/50');
 });
 
 dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
-  dropZone.classList.remove('border-blue-600', 'bg-blue-50/50');
+  dropZone.classList.remove('border-red-600', 'bg-red-50/50');
   if (e.dataTransfer.files && e.dataTransfer.files[0]) {
     processPdfFile(e.dataTransfer.files[0]);
   }
@@ -227,24 +251,24 @@ copiesInput.addEventListener('input', () => {
   updateCalculation();
 });
 
-// Proses Pembayaran: Buat QRIS Dinamis 100% di Sisi Browser
+// Proses Pembayaran: Buat QRIS Dinamis & Link WhatsApp Aman (Tanpa Bocor Token)
 btnProcessPayment.addEventListener('click', () => {
   if (!selectedFile || pageCount <= 0) return;
 
   currentOrderId = `PRN-${Date.now().toString().slice(-6)}`;
-  // Buat Token 4-digit acak untuk order ini
-  currentOrderToken = Math.floor(1000 + Math.random() * 9000).toString();
+  // Token dihitung dengan rumus rahasia Lab Telkom
+  currentOrderToken = generateOrderToken(currentOrderId);
   const total = pageCount * PRICE_PER_PAGE * copies;
 
   // Generate QRIS String standar EMVCo dengan Tag 54 = total
-  const qrisString = generateDynamicQRIS(total, "PRINTER TELKOM", currentOrderId);
+  const qrisString = generateDynamicQRIS(total, "PRINTER LAB TELKOM", currentOrderId);
 
   // Update Tampilan Modal
   modalAmount.textContent = formatRupiah(total);
   modalOrderId.textContent = `ID ORDER: ${currentOrderId}`;
 
-  // Siapkan Link WhatsApp Admin Otomatis dengan template pesan rapi
-  const waMessage = `Halo Admin Printer Telkom,\nSaya sudah transfer ${formatRupiah(total)} untuk cetak dokumen "${selectedFile.name}" (${pageCount} hal x ${copies} copy).\n\nID Pesanan: #${currentOrderId}\nKode Token: ${currentOrderToken}\n\nMohon dicek bukti transfer saya ini ya min, terima kasih! 🙏`;
+  // Link WhatsApp Admin Aman: HANYA BERISI ID PESANAN (KODE TOKEN TIDAK DICANTUMKAN!)
+  const waMessage = `Halo Admin Printer Lab Telkom,\nSaya sudah transfer ${formatRupiah(total)} untuk cetak dokumen "${selectedFile.name}" (${pageCount} hal x ${copies} copy).\n\nID Pesanan: #${currentOrderId}\n\nMohon dicek bukti transfer saya dan minta token cetaknya ya min! 🙏`;
   btnWhatsAppAdmin.href = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(waMessage)}`;
 
   // Reset form input token
@@ -287,7 +311,19 @@ function validateAndProceed() {
     qrisModal.classList.add('hidden');
     successModal.classList.remove('hidden');
 
-    // Buka jendela print dokumen
+    // Catat transaksi sukses ke Riwayat
+    saveToHistory({
+      date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      orderId: currentOrderId,
+      fileName: selectedFile ? selectedFile.name : 'dokumen.pdf',
+      pages: pageCount,
+      copies: copies,
+      totalCost: currentTotalCost,
+      tokenUsed: entered,
+      status: 'SUKSES DICETAK'
+    });
+
+    // Buka jendela print dokumen ke EPSON
     if (selectedFileUrl) {
       const printWindow = window.open(selectedFileUrl, '_blank');
       if (printWindow) {
@@ -313,18 +349,8 @@ tokenInput.addEventListener('keydown', (e) => {
 
 // Tombol Uji Coba Cepat (Simulator tanpa WA)
 btnSimulatePay.addEventListener('click', () => {
-  qrisModal.classList.add('hidden');
-  successModal.classList.remove('hidden');
-
-  if (selectedFileUrl) {
-    const printWindow = window.open(selectedFileUrl, '_blank');
-    if (printWindow) {
-      printWindow.focus();
-      setTimeout(() => {
-        try { printWindow.print(); } catch (e) {}
-      }, 1000);
-    }
-  }
+  tokenInput.value = currentOrderToken || MASTER_PIN;
+  validateAndProceed();
 });
 
 // Tombol Selesai di Modal Sukses

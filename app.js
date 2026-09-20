@@ -1,5 +1,5 @@
 // Backend Cloudflare Tunnel URL (Auto-Updated)
-const SERVER_URL = 'https://giving-blanket-psychiatry-invitations.trycloudflare.com';
+const SERVER_URL = 'https://this-sign-deemed-panels.trycloudflare.com';
 
 // Inisialisasi PDF.js Worker untuk hitung halaman di Client
 if (window.pdfjsLib) {

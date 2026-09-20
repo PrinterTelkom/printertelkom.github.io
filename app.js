@@ -19,47 +19,30 @@ function calculateCRC16(str) {
   return crc.toString(16).toUpperCase().padStart(4, '0');
 }
 
-function formatTLV(tag, value) {
-  const len = value.length.toString().padStart(2, '0');
-  return `${tag}${len}${value}`;
-}
+// Base QRIS Resmi: LAB. TELEKOMUNIKASI UB, EDUKASI (NMID: ID1026577429792)
+const OFFICIAL_QRIS_STATIC = "00020101021126610014COM.GO-JEK.WWW01189360091433211473700210G3211473700303UMI51440014ID.CO.QRIS.WWW0215ID10265774297920303UMI5204829953033605802ID5925Lab. Telekomunikasi UB, E6006MALANG61056514562070703A0163042F55";
 
-function generateDynamicQRIS(amount, merchantName = "PRINTER LAB TELKOM", orderId = "") {
+function generateDynamicQRIS(amount, orderId = "") {
+  // Ambil base string resmi tanpa CRC tag 6304
+  let base = OFFICIAL_QRIS_STATIC.substring(0, OFFICIAL_QRIS_STATIC.length - 8);
+  // Ubah tipe ke dynamic (12)
+  base = base.replace("010211", "010212");
+
+  // Format nominal tag 54
   const amountStr = Math.round(amount).toString();
-  const tag54 = formatTLV("54", amountStr); // Tag 54: Transaction Amount
-  
-  let qrisData = "";
-  qrisData += formatTLV("00", "01"); // Format indicator
-  qrisData += formatTLV("01", "12"); // 12 = Dynamic QR
-  
-  // Tag 26: Merchant Info
-  const sub26_00 = formatTLV("00", "ID.CO.QRIS.WWW");
-  const sub26_01 = formatTLV("01", "0000000000000001");
-  const sub26_02 = formatTLV("02", "123456789012345");
-  const sub26_03 = formatTLV("03", "UMI");
-  qrisData += formatTLV("26", sub26_00 + sub26_01 + sub26_02 + sub26_03);
+  const len = amountStr.length.toString().padStart(2, '0');
+  const tag54 = `54${len}${amountStr}`;
 
-  // Tag 51: GPN Info
-  const sub51_00 = formatTLV("00", "ID.OR.GPN");
-  const sub51_01 = formatTLV("01", "195450000000000");
-  const sub51_02 = formatTLV("02", "0123456789");
-  qrisData += formatTLV("51", sub51_00 + sub51_01 + sub51_02);
-
-  qrisData += formatTLV("52", "5999");
-  qrisData += formatTLV("53", "360"); // IDR Currency
-  qrisData += tag54;
-  qrisData += formatTLV("58", "ID");
-  qrisData += formatTLV("59", merchantName.substring(0, 25));
-  qrisData += formatTLV("60", "BANDUNG");
-  qrisData += formatTLV("61", "40115");
-
-  if (orderId) {
-    qrisData += formatTLV("62", formatTLV("01", orderId));
+  // Sisipkan tag 54 tepat sebelum tag 58 (Country Code ID)
+  const idx58 = base.indexOf("5802ID");
+  if (idx58 !== -1) {
+    base = base.substring(0, idx58) + tag54 + base.substring(idx58);
   }
 
-  const dataForCRC = qrisData + "6304";
-  const checksum = calculateCRC16(dataForCRC);
-  return dataForCRC + checksum;
+  // Hitung ulang checksum CRC16 EMVCo
+  const toCrc = base + "6304";
+  const checksum = calculateCRC16(toCrc);
+  return toCrc + checksum;
 }
 
 // Algoritma Encode ID Pesanan 4-Digit (Mengunci jumlah halaman & copy anti-manipulasi)
@@ -356,15 +339,15 @@ btnProcessPayment.addEventListener('click', async () => {
   currentOrderToken = generateOrderToken(currentOrderId);
   const total = pageCount * PRICE_PER_PAGE * copies;
 
-  // Generate QRIS String standar EMVCo dengan Tag 54 = total
-  const qrisString = generateDynamicQRIS(total, "PRINTER LAB TELKOM", currentOrderId);
+  // Generate QRIS String standar EMVCo resmi dengan Tag 54 = total
+  const qrisString = generateDynamicQRIS(total, currentOrderId);
 
   // Update Tampilan Modal
   modalAmount.textContent = formatRupiah(total);
   modalOrderId.textContent = `ID ORDER: #${currentOrderId}`;
 
   // Link WhatsApp Admin Aman: HANYA BERISI ID PESANAN (KODE TOKEN TIDAK DICANTUMKAN!)
-  const waMessage = `Halo Admin Printer Lab Telkom,\nSaya sudah transfer ${formatRupiah(total)} untuk cetak dokumen "${selectedFile.name}".\n\nID Pesanan: #${currentOrderId}\n\nMohon dicek bukti transfer saya dan kirimkan token cetaknya ya min! 🙏`;
+  const waMessage = `Halo Admin Printer Lab Telkom,\nSaya sudah transfer ${formatRupiah(total)} via QRIS (LAB. TELEKOMUNIKASI UB) untuk cetak dokumen "${selectedFile.name}".\n\nID Pesanan: #${currentOrderId}\n\nMohon dicek bukti transfer saya dan kirimkan token cetaknya ya min! 🙏`;
   btnWhatsAppAdmin.href = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(waMessage)}`;
 
   // Reset form input token

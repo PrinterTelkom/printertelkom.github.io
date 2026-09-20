@@ -224,16 +224,23 @@
       <h3 class="text-xl font-extrabold text-slate-900">Scan untuk Membayar</h3>
       <p class="text-xs text-slate-500 mt-1">Buka aplikasi m-Banking atau e-Wallet favorit Anda</p>
 
-      <!-- Total Bayar -->
-      <div class="my-4 py-3 px-4 bg-slate-50 rounded-2xl border border-slate-200">
-        <p class="text-xs text-slate-500">Total Tagihan Pas:</p>
-        <p id="modalAmount" class="text-3xl font-black text-slate-900 mt-0.5">Rp 0</p>
-        <p id="modalOrderId" class="text-[11px] font-mono text-slate-400 mt-1">ID: PRN-000000</p>
+      <!-- Informasi Merchant Resmi -->
+      <div class="my-2.5 py-2 px-3 bg-red-50/80 border border-red-200 rounded-xl text-xs">
+        <p class="font-extrabold text-slate-900 text-sm">LAB. TELEKOMUNIKASI UB, EDUKASI</p>
+        <p class="text-[11px] text-slate-600 font-mono mt-0.5">NMID: ID1026577429792 • Terminal: A01</p>
       </div>
 
-      <!-- Wadah Barcode QRIS -->
-      <div class="p-3 bg-white border-2 border-slate-200 rounded-2xl inline-block shadow-inner mb-3">
-        <div id="qrisQrcode" class="w-52 h-52 mx-auto flex items-center justify-center"></div>
+      <!-- Total Bayar -->
+      <div class="my-2.5 py-2.5 px-4 bg-slate-50 rounded-2xl border border-slate-200">
+        <p class="text-xs text-slate-500">Total Tagihan Pas:</p>
+        <p id="modalAmount" class="text-3xl font-black text-slate-900 mt-0.5">Rp 0</p>
+        <p id="modalOrderId" class="text-[11px] font-mono text-slate-400 mt-0.5">ID: PRN-000000</p>
+      </div>
+
+      <!-- Wadah Gambar Poster QRIS Resmi -->
+      <div class="p-2 bg-white border-2 border-slate-200 rounded-2xl inline-block shadow-inner mb-2 max-w-[270px]">
+        <img id="officialQrisImg" src="qris.jpg" alt="QRIS Lab Telekomunikasi UB" class="w-full rounded-xl shadow-sm object-contain">
+        <div id="qrisQrcode" class="hidden"></div>
       </div>
 
       <!-- Langkah 1 & 2: Kirim Bukti ke WhatsApp Admin -->

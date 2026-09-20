@@ -10,8 +10,8 @@ if (!API_BASE_URL) {
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.port === '3000') {
     API_BASE_URL = window.location.origin;
   } else {
-    // Default fallback (misal saat pertama kali dibuka di GitHub Pages)
-    API_BASE_URL = 'http://localhost:3000';
+    // Default fallback saat dibuka di GitHub Pages
+    API_BASE_URL = 'https://southampton-weekend-packages-rca.trycloudflare.com';
   }
 }
 

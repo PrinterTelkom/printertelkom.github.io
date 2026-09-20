@@ -69,8 +69,13 @@ let pageCount = 0;
 let copies = 1;
 const PRICE_PER_PAGE = 1000;
 let currentOrderId = null;
+let currentOrderToken = null;
 let currentTotalCost = 0;
 let qrcodeInstance = null;
+
+// Konfigurasi Admin WhatsApp & Token Master
+const ADMIN_WA = '6281536852418'; // 081536852418
+const MASTER_PIN = '2418'; // PIN Master cadangan admin
 
 // DOM Elements
 const dropZone = document.getElementById('dropZone');
@@ -93,8 +98,10 @@ const btnCloseModal = document.getElementById('btnCloseModal');
 const modalAmount = document.getElementById('modalAmount');
 const modalOrderId = document.getElementById('modalOrderId');
 const qrisQrcodeDiv = document.getElementById('qrisQrcode');
-const paymentStatusBox = document.getElementById('paymentStatusBox');
-const paymentStatusText = document.getElementById('paymentStatusText');
+const btnWhatsAppAdmin = document.getElementById('btnWhatsAppAdmin');
+const tokenInput = document.getElementById('tokenInput');
+const btnValidateToken = document.getElementById('btnValidateToken');
+const tokenErrorMsg = document.getElementById('tokenErrorMsg');
 const btnSimulatePay = document.getElementById('btnSimulatePay');
 
 // Success Modal
@@ -220,11 +227,13 @@ copiesInput.addEventListener('input', () => {
   updateCalculation();
 });
 
-// Proses Pembayaran: Buat QRIS Dinamis 100% di Sisi Browser (Tanpa Butuh Server)
+// Proses Pembayaran: Buat QRIS Dinamis 100% di Sisi Browser
 btnProcessPayment.addEventListener('click', () => {
   if (!selectedFile || pageCount <= 0) return;
 
   currentOrderId = `PRN-${Date.now().toString().slice(-6)}`;
+  // Buat Token 4-digit acak untuk order ini
+  currentOrderToken = Math.floor(1000 + Math.random() * 9000).toString();
   const total = pageCount * PRICE_PER_PAGE * copies;
 
   // Generate QRIS String standar EMVCo dengan Tag 54 = total
@@ -234,6 +243,14 @@ btnProcessPayment.addEventListener('click', () => {
   modalAmount.textContent = formatRupiah(total);
   modalOrderId.textContent = `ID ORDER: ${currentOrderId}`;
 
+  // Siapkan Link WhatsApp Admin Otomatis dengan template pesan rapi
+  const waMessage = `Halo Admin Printer Telkom,\nSaya sudah transfer ${formatRupiah(total)} untuk cetak dokumen "${selectedFile.name}" (${pageCount} hal x ${copies} copy).\n\nID Pesanan: #${currentOrderId}\nKode Token: ${currentOrderToken}\n\nMohon dicek bukti transfer saya ini ya min, terima kasih! 🙏`;
+  btnWhatsAppAdmin.href = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(waMessage)}`;
+
+  // Reset form input token
+  tokenInput.value = '';
+  tokenErrorMsg.classList.add('hidden');
+
   // Bersihkan qrcode sebelumnya jika ada
   qrisQrcodeDiv.innerHTML = '';
   
@@ -241,15 +258,14 @@ btnProcessPayment.addEventListener('click', () => {
   if (window.QRCode) {
     qrcodeInstance = new QRCode(qrisQrcodeDiv, {
       text: qrisString,
-      width: 210,
-      height: 210,
+      width: 200,
+      height: 200,
       colorDark: "#000000",
       colorLight: "#ffffff",
       correctLevel: QRCode.CorrectLevel.M
     });
   } else {
-    // Fallback online QR generator jika library belum termuat
-    qrisQrcodeDiv.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=210x210&data=${encodeURIComponent(qrisString)}" class="w-52 h-52 mx-auto">`;
+    qrisQrcodeDiv.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrisString)}" class="w-48 h-48 mx-auto">`;
   }
 
   // Buka Modal QRIS
@@ -261,13 +277,45 @@ btnCloseModal.addEventListener('click', () => {
   qrisModal.classList.add('hidden');
 });
 
-// Tombol Simulasi Bayar Lunas / Konfirmasi Bayar
+// Validasi Token dari Admin
+function validateAndProceed() {
+  const entered = tokenInput.value.trim();
+  
+  // Validasi: cocok dengan token order ini ATAU Master PIN admin
+  if (entered === currentOrderToken || entered === MASTER_PIN) {
+    tokenErrorMsg.classList.add('hidden');
+    qrisModal.classList.add('hidden');
+    successModal.classList.remove('hidden');
+
+    // Buka jendela print dokumen
+    if (selectedFileUrl) {
+      const printWindow = window.open(selectedFileUrl, '_blank');
+      if (printWindow) {
+        printWindow.focus();
+        setTimeout(() => {
+          try { printWindow.print(); } catch (e) {}
+        }, 1000);
+      }
+    }
+  } else {
+    tokenErrorMsg.classList.remove('hidden');
+    tokenInput.focus();
+  }
+}
+
+btnValidateToken.addEventListener('click', validateAndProceed);
+
+tokenInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    validateAndProceed();
+  }
+});
+
+// Tombol Uji Coba Cepat (Simulator tanpa WA)
 btnSimulatePay.addEventListener('click', () => {
   qrisModal.classList.add('hidden');
   successModal.classList.remove('hidden');
 
-  // Jika dibuka di browser komputer yang tersambung ke printer EPSON,
-  // langsung buka jendela cetak dokumen PDF!
   if (selectedFileUrl) {
     const printWindow = window.open(selectedFileUrl, '_blank');
     if (printWindow) {

@@ -517,11 +517,14 @@
             </div>
             
             <div class="flex items-center space-x-2 w-full sm:w-auto">
-              <button onclick="selectPendingOrder('${item.orderId}')" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
-                🔍 Cek Rincian
+              <button onclick="selectPendingOrder('${item.orderId}')" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition" title="Cek Rincian">
+                🔍
               </button>
-              <button onclick="executeDirectValidation('${item.orderId}')" class="flex-1 sm:flex-initial px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 whitespace-nowrap">
-                <span>🚀 Validasi & Cetak</span>
+              <button onclick="executeRejectOrder('${item.orderId}')" class="px-3 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold text-xs rounded-xl transition" title="Tolak Pesanan">
+                ❌ Tolak
+              </button>
+              <button onclick="executeDirectValidation('${item.orderId}')" class="flex-1 sm:flex-initial px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 whitespace-nowrap">
+                <span>🚀 Validasi</span>
               </button>
             </div>
           </div>
@@ -615,6 +618,53 @@
         setTimeout(() => directValidateSuccessBanner.classList.add('hidden'), 5000);
       }
       alert(`✅ Berhasil! Pesanan ${cleanId} telah divalidasi langsung. Kios pelanggan otomatis beralih ke proses cetak tanpa perlu ketik token.`);
+    }
+
+    function executeRejectOrder(orderId) {
+      if (!confirm(`Apakah Anda yakin ingin menolak pesanan ${orderId}?\nPelanggan akan diberitahu bahwa pesanannya ditolak.`)) return;
+
+      let cleanId = orderId.toUpperCase().replace('#', '').trim();
+      if (!cleanId.startsWith('PRN-')) cleanId = `PRN-${cleanId}`;
+
+      // Hapus dari daftar antrean pending
+      try {
+        let pending = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
+        pending = pending.filter(p => p.orderId !== cleanId);
+        localStorage.setItem('lab_pending_orders', JSON.stringify(pending));
+        renderPendingOrders();
+      } catch(e) {}
+
+      // 1. Simpan tanda penolakan di localStorage (instan untuk browser yang sama)
+      localStorage.setItem(`rejected_order_${cleanId}`, JSON.stringify({
+        orderId: cleanId,
+        rejectedAt: new Date().toISOString()
+      }));
+
+      // 2. Kirim sinyal lewat BroadcastChannel
+      if (syncChannel) {
+        try {
+          syncChannel.postMessage({
+            action: 'ORDER_REJECTED',
+            orderId: cleanId,
+            timestamp: Date.now()
+          });
+        } catch (e) {}
+      }
+
+      // 3. Kirim sinyal realtime via ntfy.sh (untuk cross-device)
+      try {
+        fetch('https://ntfy.sh/printer-lab-telkom-orders-2026', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'ORDER_REJECTED',
+            orderId: cleanId,
+            timestamp: Date.now()
+          })
+        }).catch(() => {});
+      } catch (e) {}
+
+      alert(`⚠️ Pesanan ${cleanId} telah ditolak. Kios pelanggan akan segera tertutup otomatis.`);
     }
 
     if (btnDirectValidateAndPrint) {

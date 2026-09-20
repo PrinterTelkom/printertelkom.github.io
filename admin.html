@@ -768,7 +768,7 @@
       };
     } catch(e) {}
 
-    setInterval(renderPendingOrders, 2000);
+    setInterval(() => { renderPendingOrders(); syncPendingFromServer(); }, 2000);
 
     // Load History & Statistik
     const historyTableBody = document.getElementById('historyTableBody');

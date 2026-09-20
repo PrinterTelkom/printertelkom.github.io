@@ -98,6 +98,37 @@
         </button>
       </div>
     </div>
+
+    <!-- Bagian Antrean Pesanan Pelanggan Menunggu Validasi (Realtime 1-Klik) -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-slate-100 gap-2 mb-4">
+        <div class="flex items-center space-x-2.5">
+          <span class="text-2xl">⏳</span>
+          <div>
+            <h3 class="font-extrabold text-base text-slate-900">Antrean Pesanan Pelanggan Menunggu Validasi</h3>
+            <p class="text-xs text-slate-500">Klik langsung tombol validasi pada kartu pesanan tanpa perlu mengetik ID manual!</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span id="pendingBadgeCount" class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold">
+            0 Menunggu
+          </span>
+          <button id="btnRefreshPending" class="text-xs text-blue-600 hover:text-blue-800 font-semibold px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 transition flex items-center space-x-1" title="Perbarui Antrean">
+            <span>🔄</span>
+            <span>Segarkan</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Wadah List Pesanan Menunggu -->
+      <div id="pendingOrdersContainer" class="space-y-3">
+        <div class="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+          <p class="text-2xl mb-1">☕</p>
+          <p class="text-xs font-semibold text-slate-600">Tidak ada antrean pesanan saat ini.</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Saat pelanggan membuka QRIS di kios, pesanan otomatis muncul di sini secara realtime.</p>
+        </div>
+      </div>
+    </div>
     
     <!-- Bagian 1: Generator & Cek Token Pesanan -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -348,6 +379,7 @@
         btnLogout.classList.remove('hidden');
         loadHistory();
         updateAdminPrinterUI();
+        renderPendingOrders();
       } else {
         loginSection.classList.remove('hidden');
         dashboardSection.classList.add('hidden');
@@ -429,6 +461,84 @@
       setTimeout(() => copyText.textContent = 'Salin Token', 1500);
     });
 
+    // Kontrol Antrean Pesanan Pelanggan Menunggu Validasi
+    const pendingOrdersContainer = document.getElementById('pendingOrdersContainer');
+    const pendingBadgeCount = document.getElementById('pendingBadgeCount');
+    const btnRefreshPending = document.getElementById('btnRefreshPending');
+
+    function renderPendingOrders() {
+      if (!pendingOrdersContainer) return;
+      let pending = [];
+      try {
+        pending = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
+      } catch(e) {}
+
+      if (pendingBadgeCount) {
+        pendingBadgeCount.textContent = `${pending.length} Menunggu`;
+        if (pending.length > 0) {
+          pendingBadgeCount.className = "px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-black animate-pulse";
+        } else {
+          pendingBadgeCount.className = "px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-semibold";
+        }
+      }
+
+      if (pending.length === 0) {
+        pendingOrdersContainer.innerHTML = `
+          <div class="p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            <p class="text-2xl mb-1">☕</p>
+            <p class="text-xs font-semibold text-slate-600">Tidak ada antrean pesanan saat ini.</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Saat pelanggan membuka QRIS di kios, pesanan otomatis muncul di sini secara realtime.</p>
+          </div>
+        `;
+        return;
+      }
+
+      let html = '';
+      pending.forEach(item => {
+        html += `
+          <div class="p-4 bg-gradient-to-r from-amber-50/50 to-orange-50/30 border-2 border-amber-200 hover:border-amber-400 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition shadow-sm">
+            <div class="flex items-center space-x-3 cursor-pointer select-none flex-1" onclick="selectPendingOrder('${item.orderId}')">
+              <div class="w-12 h-12 bg-amber-100 text-amber-800 rounded-xl flex items-center justify-center font-mono font-black text-sm shadow-inner flex-shrink-0">
+                🖨️
+              </div>
+              <div class="overflow-hidden">
+                <div class="flex items-center space-x-2">
+                  <span class="font-mono font-black text-base text-slate-900">${item.orderId}</span>
+                  <span class="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">${item.createdAt || ''}</span>
+                  <span class="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold animate-pulse">Menunggu Bayar</span>
+                </div>
+                <p class="text-xs text-slate-600 mt-0.5 font-medium truncate max-w-xs sm:max-w-md" title="${item.fileName}">
+                  ${item.fileName} • <b>${item.pages} Hal</b> (${item.copies || 1}x copy)
+                </p>
+                <p class="text-xs font-black text-emerald-700 mt-0.5">
+                  Total Tagihan: Rp ${(item.totalCost || 0).toLocaleString('id-ID')}
+                </p>
+              </div>
+            </div>
+            
+            <div class="flex items-center space-x-2 w-full sm:w-auto">
+              <button onclick="selectPendingOrder('${item.orderId}')" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+                🔍 Cek Rincian
+              </button>
+              <button onclick="executeDirectValidation('${item.orderId}')" class="flex-1 sm:flex-initial px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 whitespace-nowrap">
+                <span>🚀 Validasi & Cetak</span>
+              </button>
+            </div>
+          </div>
+        `;
+      });
+      pendingOrdersContainer.innerHTML = html;
+    }
+
+    function selectPendingOrder(orderId) {
+      lookupOrderIdInput.value = orderId;
+      doLookup();
+    }
+
+    if (btnRefreshPending) {
+      btnRefreshPending.addEventListener('click', renderPendingOrders);
+    }
+
     // Tombol Validasi Langsung 1-Klik dari Admin
     const btnDirectValidateAndPrint = document.getElementById('btnDirectValidateAndPrint');
     const directValidateSuccessBanner = document.getElementById('directValidateSuccessBanner');
@@ -447,6 +557,14 @@
         validatedAt: new Date().toISOString(),
         by: 'admin'
       }));
+
+      // Hapus dari daftar antrean pending
+      try {
+        let pending = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
+        pending = pending.filter(p => p.orderId !== cleanId);
+        localStorage.setItem('lab_pending_orders', JSON.stringify(pending));
+        renderPendingOrders();
+      } catch(e) {}
 
       // 2. Kirim sinyal lewat BroadcastChannel
       if (syncChannel) {
@@ -509,6 +627,49 @@
         executeDirectValidation(val);
       });
     }
+
+    // Dengar sinyal realtime untuk antrean pending
+    if (syncChannel) {
+      syncChannel.onmessage = (e) => {
+        if (e.data && (e.data.action === 'NEW_PENDING_ORDER' || e.data.action === 'ORDER_VALIDATED' || e.data.action === 'ORDER_COMPLETED')) {
+          renderPendingOrders();
+        }
+      };
+    }
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'lab_pending_orders') {
+        renderPendingOrders();
+      }
+    });
+
+    // Remote EventSource listener
+    try {
+      const adminSse = new EventSource('https://ntfy.sh/printer-lab-telkom-orders-2026/sse');
+      adminSse.onmessage = (e) => {
+        try {
+          let data = JSON.parse(e.data);
+          if (typeof data.message === 'string') {
+            try { data = JSON.parse(data.message); } catch(err) {}
+          }
+          if (data && data.action === 'NEW_PENDING_ORDER' && data.order) {
+            let list = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
+            if (!list.some(x => x.orderId === data.order.orderId)) {
+              list.unshift(data.order);
+              localStorage.setItem('lab_pending_orders', JSON.stringify(list));
+              renderPendingOrders();
+            }
+          } else if (data && data.action === 'ORDER_VALIDATED' && data.orderId) {
+            let list = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
+            list = list.filter(x => x.orderId !== data.orderId);
+            localStorage.setItem('lab_pending_orders', JSON.stringify(list));
+            renderPendingOrders();
+          }
+        } catch(err) {}
+      };
+    } catch(e) {}
+
+    setInterval(renderPendingOrders, 2000);
 
     // Load History & Statistik
     const historyTableBody = document.getElementById('historyTableBody');

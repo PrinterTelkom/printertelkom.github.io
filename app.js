@@ -1,5 +1,5 @@
 // Backend Cloudflare Tunnel URL (Auto-Updated)
-const SERVER_URL = 'https://some-tunnel.trycloudflare.com';
+const SERVER_URL = 'https://embedded-took-presents-dear.trycloudflare.com';
 
 // Inisialisasi PDF.js Worker untuk hitung halaman di Client
 if (window.pdfjsLib) {

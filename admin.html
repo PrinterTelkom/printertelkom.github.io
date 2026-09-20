@@ -163,6 +163,26 @@
             </p>
           </div>
 
+          <!-- Tombol Validasi 1-Klik Langsung ke Kios -->
+          <div class="p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="text-base">⚡</span>
+                <p class="text-xs font-bold uppercase tracking-wider text-blue-100">Validasi Langsung (Tanpa Pelanggan Ketik Token):</p>
+              </div>
+              <p class="text-[11px] text-blue-100 mt-1">
+                Kios pelanggan akan otomatis mendeteksi persetujuan admin dan langsung memulai cetak!
+              </p>
+            </div>
+            <button id="btnDirectValidateAndPrint" class="w-full sm:w-auto px-5 py-3 bg-white hover:bg-blue-50 text-blue-700 font-extrabold text-xs rounded-xl shadow active:scale-95 transition flex items-center justify-center space-x-1.5 whitespace-nowrap">
+              <span>🚀 Validasi & Cetak Sekarang</span>
+            </button>
+          </div>
+
+          <div id="directValidateSuccessBanner" class="hidden p-3 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold text-center">
+            ✅ Sukses divalidasi! Kios pelanggan telah otomatis dialihkan ke status Berhasil Cetak.
+          </div>
+
         </div>
       </div>
 
@@ -408,6 +428,87 @@
       copyText.textContent = 'Tersalin!';
       setTimeout(() => copyText.textContent = 'Salin Token', 1500);
     });
+
+    // Tombol Validasi Langsung 1-Klik dari Admin
+    const btnDirectValidateAndPrint = document.getElementById('btnDirectValidateAndPrint');
+    const directValidateSuccessBanner = document.getElementById('directValidateSuccessBanner');
+    const syncChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('printer_lab_telkom_sync') : null;
+
+    function executeDirectValidation(orderId) {
+      let cleanId = orderId.toUpperCase().replace('#', '').trim();
+      if (!cleanId.startsWith('PRN-')) cleanId = `PRN-${cleanId}`;
+
+      const res = generateOrderToken(cleanId);
+      const decoded = decodeOrderId(cleanId);
+
+      // 1. Simpan tanda validasi di localStorage (instan untuk browser yang sama)
+      localStorage.setItem(`validated_order_${cleanId}`, JSON.stringify({
+        orderId: cleanId,
+        validatedAt: new Date().toISOString(),
+        by: 'admin'
+      }));
+
+      // 2. Kirim sinyal lewat BroadcastChannel
+      if (syncChannel) {
+        try {
+          syncChannel.postMessage({
+            action: 'ORDER_VALIDATED',
+            orderId: cleanId,
+            timestamp: Date.now()
+          });
+        } catch (e) {}
+      }
+
+      // 3. Kirim sinyal realtime via ntfy.sh (untuk cross-device / admin lewat HP ke Kios)
+      try {
+        fetch('https://ntfy.sh/printer-lab-telkom-orders-2026', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'ORDER_VALIDATED',
+            orderId: cleanId,
+            timestamp: Date.now()
+          })
+        }).catch(() => {});
+      } catch (e) {}
+
+      // 4. Catat transaksi ke riwayat admin jika belum tercatat
+      try {
+        const history = JSON.parse(localStorage.getItem('lab_telkom_history') || '[]');
+        const existing = history.find(h => h.orderId === cleanId);
+        if (!existing) {
+          history.unshift({
+            date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            orderId: cleanId,
+            fileName: 'dokumen.pdf',
+            pages: decoded ? decoded.pages : 1,
+            copies: decoded ? decoded.copies : 1,
+            totalCost: decoded ? decoded.totalCost : 1000,
+            tokenUsed: 'VALIDASI LANGSUNG ADMIN',
+            status: 'SUKSES DICETAK'
+          });
+          localStorage.setItem('lab_telkom_history', JSON.stringify(history));
+          loadHistory();
+        }
+      } catch (e) {}
+
+      if (directValidateSuccessBanner) {
+        directValidateSuccessBanner.classList.remove('hidden');
+        setTimeout(() => directValidateSuccessBanner.classList.add('hidden'), 5000);
+      }
+      alert(`✅ Berhasil! Pesanan ${cleanId} telah divalidasi langsung. Kios pelanggan otomatis beralih ke proses cetak tanpa perlu ketik token.`);
+    }
+
+    if (btnDirectValidateAndPrint) {
+      btnDirectValidateAndPrint.addEventListener('click', () => {
+        const val = lookupOrderIdInput.value.trim();
+        if (!val) {
+          alert('Harap masukkan ID Pesanan pelanggan terlebih dahulu.');
+          return;
+        }
+        executeDirectValidation(val);
+      });
+    }
 
     // Load History & Statistik
     const historyTableBody = document.getElementById('historyTableBody');

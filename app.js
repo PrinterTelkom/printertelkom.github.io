@@ -1,89 +1,21 @@
-// Inisialisasi PDF.js Worker
+// Backend Cloudflare Tunnel URL (Auto-Updated)
+const SERVER_URL = 'https://some-tunnel.trycloudflare.com';
+
+// Inisialisasi PDF.js Worker untuk hitung halaman di Client
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-// --- ENGINE QRIS DINAMIS STANDAR EMVCo (Client-Side) ---
-function calculateCRC16(str) {
-  let crc = 0xFFFF;
-  for (let c = 0; c < str.length; c++) {
-    crc ^= str.charCodeAt(c) << 8;
-    for (let i = 0; i < 8; i++) {
-      if ((crc & 0x8000) !== 0) {
-        crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
-      } else {
-        crc = (crc << 1) & 0xFFFF;
-      }
-    }
-  }
-  return crc.toString(16).toUpperCase().padStart(4, '0');
-}
-
-// Base QRIS Resmi: LAB. TELEKOMUNIKASI UB, EDUKASI (NMID: ID1026577429792)
-const OFFICIAL_QRIS_STATIC = "00020101021126610014COM.GO-JEK.WWW01189360091433211473700210G3211473700303UMI51440014ID.CO.QRIS.WWW0215ID10265774297920303UMI5204829953033605802ID5925Lab. Telekomunikasi UB, E6006MALANG61056514562070703A0163042F55";
-
-function generateDynamicQRIS(amount, orderId = "") {
-  // Ambil base string resmi tanpa CRC tag 6304
-  let base = OFFICIAL_QRIS_STATIC.substring(0, OFFICIAL_QRIS_STATIC.length - 8);
-  // Ubah tipe ke dynamic (12)
-  base = base.replace("010211", "010212");
-
-  // Format nominal tag 54
-  const amountStr = Math.round(amount).toString();
-  const len = amountStr.length.toString().padStart(2, '0');
-  const tag54 = `54${len}${amountStr}`;
-
-  // Sisipkan tag 54 tepat sebelum tag 58 (Country Code ID)
-  const idx58 = base.indexOf("5802ID");
-  if (idx58 !== -1) {
-    base = base.substring(0, idx58) + tag54 + base.substring(idx58);
-  }
-
-  // Hitung ulang checksum CRC16 EMVCo
-  const toCrc = base + "6304";
-  const checksum = calculateCRC16(toCrc);
-  return toCrc + checksum;
-}
-
-// Algoritma Encode ID Pesanan 4-Digit (Mengunci jumlah halaman & copy anti-manipulasi)
-const SECRET_CIPHER_KEY = 4257;
-const CIPHER_MULTIPLIER = 137;
-
-function encodeOrderId(pages, copies = 1) {
-  const safeCopies = Math.min(Math.max(copies, 1), 9);
-  const safePages = Math.min(Math.max(pages, 1), 999);
-  const packed = safePages * 10 + safeCopies;
-  const cipher = (packed * CIPHER_MULTIPLIER + SECRET_CIPHER_KEY) % 10000;
-  return `PRN-${cipher.toString().padStart(4, '0')}`;
-}
-
-// Algoritma Token Deterministik Rahasia Lab Telkom
-function generateOrderToken(orderId) {
-  let hash = 0;
-  const seed = `LABTELKOM_${orderId}_SEC2026`;
-  for (let i = 0; i < seed.length; i++) {
-    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-    hash |= 0;
-  }
-  const token = (Math.abs(hash) % 9000) + 1000;
-  return token.toString();
-}
-
 // State Aplikasi
 let selectedFile = null;
-let selectedFileUrl = null;
 let pageCount = 0;
 let copies = 1;
 const PRICE_PER_PAGE = 1000;
 let currentOrderId = null;
-let currentOrderToken = null;
 let currentTotalCost = 0;
-let qrcodeInstance = null;
-let currentPdfDoc = null;
+let statusPollingInterval = null;
 
-// Konfigurasi Admin WhatsApp & Token Master
-const ADMIN_WA = '6281536852418'; // 081536852418
-const MASTER_PIN = '2423'; // PIN Master cadangan admin yang selalu aktif
+const ADMIN_WA = '6281536852418';
 
 // DOM Elements
 const dropZone = document.getElementById('dropZone');
@@ -114,88 +46,54 @@ const modalAmount = document.getElementById('modalAmount');
 const modalOrderId = document.getElementById('modalOrderId');
 const qrisQrcodeDiv = document.getElementById('qrisQrcode');
 const btnWhatsAppAdmin = document.getElementById('btnWhatsAppAdmin');
-const tokenInput = document.getElementById('tokenInput');
-const btnValidateToken = document.getElementById('btnValidateToken');
-const tokenErrorMsg = document.getElementById('tokenErrorMsg');
 
 // Success Modal
 const successModal = document.getElementById('successModal');
-const btnPrintAgain = document.getElementById('btnPrintAgain');
 const btnFinishOrder = document.getElementById('btnFinishOrder');
-const printArea = document.getElementById('printArea');
 
-// Format Rupiah
+// Format Rupiah & Ukuran
 function formatRupiah(amount) {
   return 'Rp ' + amount.toLocaleString('id-ID');
 }
-
-// Format Ukuran File
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-// Simpan transaksi ke Riwayat Lab Telkom
-function saveToHistory(orderData) {
-  try {
-    const history = JSON.parse(localStorage.getItem('lab_telkom_history') || '[]');
-    history.unshift(orderData);
-    if (history.length > 50) history.pop(); // simpan 50 riwayat terakhir
-    localStorage.setItem('lab_telkom_history', JSON.stringify(history));
-  } catch (e) {
-    console.warn('Gagal menyimpan riwayat:', e);
-  }
-}
-
-// Update Kalkulasi Harga
+// Kalkulasi UI
 function updateCalculation() {
   currentTotalCost = pageCount * PRICE_PER_PAGE * copies;
-  formulaText.textContent = `${pageCount} hal x Rp 1.000 x ${copies} copy`;
+  formulaText.textContent = pageCount + ' hal x Rp 1.000 x ' + copies + ' copy';
   totalCostDisplay.textContent = formatRupiah(currentTotalCost);
 }
 
-// Hitung Jumlah Halaman Menggunakan PDF.js langsung di Browser
+// Proses File
 async function processPdfFile(file) {
   if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
     alert('Harap pilih file berformat PDF.');
     return;
   }
-
   selectedFile = file;
-  if (selectedFileUrl) URL.revokeObjectURL(selectedFileUrl);
-  selectedFileUrl = URL.createObjectURL(file);
-
   fileNameDisplay.textContent = file.name;
   fileSizeDisplay.textContent = formatFileSize(file.size);
   pageCountDisplay.textContent = 'Menghitung...';
 
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-    const pdf = await loadingTask.promise;
-    currentPdfDoc = pdf;
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     pageCount = pdf.numPages;
-
-    pageCountDisplay.textContent = `${pageCount} Halaman`;
+    pageCountDisplay.textContent = pageCount + ' Halaman';
     updateCalculation();
-
     dropZone.classList.add('hidden');
     fileDetailPanel.classList.remove('hidden');
   } catch (err) {
-    console.error('Error membaca PDF:', err);
-    alert('Gagal membaca dokumen PDF. Pastikan file tidak rusak atau terkunci password.');
+    alert('Gagal membaca PDF.');
   }
 }
 
-// Reset File
 function resetFile() {
   selectedFile = null;
-  currentPdfDoc = null;
-  if (selectedFileUrl) {
-    URL.revokeObjectURL(selectedFileUrl);
-    selectedFileUrl = null;
-  }
   pageCount = 0;
   copies = 1;
   copiesInput.value = 1;
@@ -204,462 +102,132 @@ function resetFile() {
   fileDetailPanel.classList.add('hidden');
 }
 
-// Event Listeners Drag & Drop
 dropZone.addEventListener('click', () => fileInput.click());
-
-dropZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropZone.classList.add('border-red-600', 'bg-red-50/50');
-});
-
-dropZone.addEventListener('dragleave', () => {
-  dropZone.classList.remove('border-red-600', 'bg-red-50/50');
-});
-
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-red-600', 'bg-red-50/50'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-red-600', 'bg-red-50/50'));
 dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
   dropZone.classList.remove('border-red-600', 'bg-red-50/50');
-  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-    processPdfFile(e.dataTransfer.files[0]);
-  }
+  if (e.dataTransfer.files[0]) processPdfFile(e.dataTransfer.files[0]);
 });
-
-fileInput.addEventListener('change', (e) => {
-  if (e.target.files && e.target.files[0]) {
-    processPdfFile(e.target.files[0]);
-  }
-});
-
+fileInput.addEventListener('change', (e) => { if (e.target.files[0]) processPdfFile(e.target.files[0]); });
 btnRemoveFile.addEventListener('click', resetFile);
 
-// Tombol Copy (+ / -)
-btnMinusCopy.addEventListener('click', () => {
-  if (copies > 1) {
-    copies--;
-    copiesInput.value = copies;
-    updateCalculation();
-  }
-});
-
-btnPlusCopy.addEventListener('click', () => {
-  if (copies < 50) {
-    copies++;
-    copiesInput.value = copies;
-    updateCalculation();
-  }
-});
-
+btnMinusCopy.addEventListener('click', () => { if (copies > 1) { copies--; copiesInput.value = copies; updateCalculation(); } });
+btnPlusCopy.addEventListener('click', () => { if (copies < 50) { copies++; copiesInput.value = copies; updateCalculation(); } });
 copiesInput.addEventListener('input', () => {
   let val = parseInt(copiesInput.value) || 1;
-  if (val < 1) val = 1;
-  if (val > 50) val = 50;
-  copies = val;
-  updateCalculation();
+  if (val < 1) val = 1; if (val > 50) val = 50;
+  copies = val; updateCalculation();
 });
 
-// --- SISTEM PENGECEKAN STATUS PRINTER ---
+// Cek Kesiapan Printer dari Server
 async function checkPrinterStatus() {
-  // 1. Cek penyimpanan lokal (jika diubah admin di perangkat/browser yang sama)
   try {
-    const localStatus = localStorage.getItem('lab_printer_status');
-    if (localStatus) {
-      const parsed = JSON.parse(localStatus);
-      if (parsed.status === 'OFFLINE') {
-        return {
-          online: false,
-          reason: parsed.reason || 'Maaf, printer Lab Telkom saat ini sedang <b>OFFLINE / Habis Kertas</b> atau dalam pemeliharaan.'
-        };
-      }
-    }
-  } catch (e) {}
-
-  // 2. Cek status.json dari server/GitHub Pages
-  try {
-    const res = await fetch('./status.json?cache=' + Date.now(), { cache: 'no-store' });
+    const res = await fetch(SERVER_URL + '/api/info');
     if (res.ok) {
       const data = await res.json();
-      if (data.status && data.status.toUpperCase() === 'OFFLINE') {
-        return {
-          online: false,
-          reason: data.message || 'Maaf, printer Lab Telkom saat ini sedang <b>OFFLINE / Habis Kertas</b>.'
-        };
-      }
+      return { online: true, name: data.selectedPrinter || 'EPSON Ready' };
     }
-  } catch (err) {
-    console.log('Status file check skipped:', err);
-  }
-
-  return { online: true, message: 'EPSON Ready' };
+  } catch(e) {}
+  return { online: false, reason: 'Koneksi ke Server Lab Terputus. Pastikan server nyala.' };
 }
 
-// Update tampilan badge printer di header
 async function updatePrinterBadge() {
   if (!printerBadge) return;
   const status = await checkPrinterStatus();
   if (status.online) {
     printerBadge.className = "flex items-center space-x-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full text-xs font-semibold text-emerald-700";
-    printerBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span id="printerNameText">EPSON Ready</span>`;
+    printerBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span id="printerNameText">' + status.name + '</span>';
   } else {
     printerBadge.className = "flex items-center space-x-2 bg-red-50 border border-red-200 px-3 py-1.5 rounded-full text-xs font-semibold text-red-700";
-    printerBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span id="printerNameText">Printer Offline</span>`;
+    printerBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span><span id="printerNameText">Server Offline</span>';
   }
 }
-
-// Jalankan update badge saat halaman dibuka
 updatePrinterBadge();
+if (btnCloseOfflineModal) btnCloseOfflineModal.addEventListener('click', () => printerOfflineModal.classList.add('hidden'));
 
-// Tombol Tutup Modal Peringatan Offline
-if (btnCloseOfflineModal) {
-  btnCloseOfflineModal.addEventListener('click', () => {
-    printerOfflineModal.classList.add('hidden');
-  });
+// Polling Status Order
+function pollOrderStatus(orderId) {
+  if (statusPollingInterval) clearInterval(statusPollingInterval);
+  statusPollingInterval = setInterval(async () => {
+    try {
+      const res = await fetch(SERVER_URL + '/api/order-status/' + orderId);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'COMPLETED' || data.status === 'PRINTING') {
+          clearInterval(statusPollingInterval);
+          qrisModal.classList.add('hidden');
+          successModal.classList.remove('hidden');
+          setTimeout(() => { resetFile(); }, 2000);
+        } else if (data.status === 'REJECTED') {
+          clearInterval(statusPollingInterval);
+          qrisModal.classList.add('hidden');
+          alert('? PESANAN DITOLAK\n\nMaaf, pesanan Anda ditolak admin (kemungkinan mesin sibuk/penuh). Hubungi WhatsApp.');
+          resetFile();
+        }
+      }
+    } catch(e) {}
+  }, 2000);
 }
 
-// Proses Pembayaran: Cek Kesiapan Printer -> Buat QRIS Dinamis & Link WhatsApp Aman
+// Upload & Tampilkan QRIS
 btnProcessPayment.addEventListener('click', async () => {
   if (!selectedFile || pageCount <= 0) return;
 
-  // 1. CEK DAHULU APAKAH PRINTER AKTIF SEBELUM LANJUT KE PEMBAYARAN
   const originalBtnHtml = btnProcessPayment.innerHTML;
   btnProcessPayment.disabled = true;
-  btnProcessPayment.innerHTML = `<span>Mengecek status printer...</span><span class="animate-pulse">⏳</span>`;
+  btnProcessPayment.innerHTML = '<span>Mengunggah Dokumen...</span><span class="animate-pulse">?</span>';
 
   const printerStatus = await checkPrinterStatus();
-  btnProcessPayment.disabled = false;
-  btnProcessPayment.innerHTML = originalBtnHtml;
-
   if (!printerStatus.online) {
-    if (printerOfflineReason) {
-      printerOfflineReason.innerHTML = printerStatus.reason;
-    }
-    if (printerOfflineModal) {
-      printerOfflineModal.classList.remove('hidden');
-    }
+    btnProcessPayment.disabled = false;
+    btnProcessPayment.innerHTML = originalBtnHtml;
+    if (printerOfflineReason) printerOfflineReason.innerHTML = printerStatus.reason;
+    if (printerOfflineModal) printerOfflineModal.classList.remove('hidden');
     updatePrinterBadge();
-    return; // BLOKIR PEMBAYARAN: Tidak menampilkan QRIS jika printer offline
-  }
-
-  // 2. JIKA PRINTER AKTIF: Lanjut ke pembuatan QRIS & ID Pesanan
-  currentOrderId = encodeOrderId(pageCount, copies);
-  currentOrderToken = generateOrderToken(currentOrderId);
-  const total = pageCount * PRICE_PER_PAGE * copies;
-
-  // Generate QRIS String standar EMVCo resmi dengan Tag 54 = total
-  const qrisString = generateDynamicQRIS(total, currentOrderId);
-
-  // Update Tampilan Modal
-  modalAmount.textContent = formatRupiah(total);
-  modalOrderId.textContent = `ID ORDER: #${currentOrderId}`;
-
-  // Link WhatsApp Admin Aman: HANYA BERISI ID PESANAN (KODE TOKEN TIDAK DICANTUMKAN!)
-  const waMessage = `Halo Admin Printer Lab Telkom,\nSaya sudah transfer ${formatRupiah(total)} via QRIS (LAB. TELEKOMUNIKASI UB) untuk cetak dokumen "${selectedFile.name}".\n\nID Pesanan: #${currentOrderId}\n\nMohon dicek bukti transfer saya dan kirimkan token cetaknya ya min! 🙏`;
-  btnWhatsAppAdmin.href = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(waMessage)}`;
-
-  // Reset form input token
-  tokenInput.value = '';
-  tokenErrorMsg.classList.add('hidden');
-
-  // Bersihkan qrcode sebelumnya jika ada
-  qrisQrcodeDiv.innerHTML = '';
-  
-  // Render Barcode QRIS menggunakan QRCode.js di Browser
-  if (window.QRCode) {
-    qrcodeInstance = new QRCode(qrisQrcodeDiv, {
-      text: qrisString,
-      width: 200,
-      height: 200,
-      colorDark: "#000000",
-      colorLight: "#ffffff",
-      correctLevel: QRCode.CorrectLevel.M
-    });
-  } else {
-    qrisQrcodeDiv.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrisString)}" class="w-48 h-48 mx-auto">`;
-  }
-
-  // Simpan ke daftar antrean pending untuk Admin Portal
-  const pendingOrder = {
-    orderId: currentOrderId,
-    fileName: selectedFile ? selectedFile.name : 'dokumen.pdf',
-    pages: pageCount,
-    copies: copies,
-    totalCost: total,
-    createdAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-    status: 'MENUNGGU'
-  };
-
-  try {
-    let pendingList = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
-    pendingList = pendingList.filter(p => p.orderId !== currentOrderId);
-    pendingList.unshift(pendingOrder);
-    localStorage.setItem('lab_pending_orders', JSON.stringify(pendingList));
-  } catch(e) {}
-
-  if (syncChannel) {
-    try {
-      syncChannel.postMessage({
-        action: 'NEW_PENDING_ORDER',
-        order: pendingOrder
-      });
-    } catch(e) {}
-  }
-
-  try {
-    fetch('https://ntfy.sh/printer-lab-telkom-orders-2026', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'NEW_PENDING_ORDER',
-        order: pendingOrder
-      })
-    }).catch(() => {});
-  } catch(e) {}
-
-  // Buka Modal QRIS & Mulai Pantau Validasi Admin Realtime
-  qrisModal.classList.remove('hidden');
-  startAutoValidationWatcher();
-});
-
-// Tutup Modal QRIS
-btnCloseModal.addEventListener('click', () => {
-  qrisModal.classList.add('hidden');
-  if (autoValidationTimer) {
-    clearInterval(autoValidationTimer);
-    autoValidationTimer = null;
-  }
-});
-
-// --- SISTEM AUTO-VALIDASI REALTIME DARI ADMIN ---
-let autoValidationTimer = null;
-const syncChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('printer_lab_telkom_sync') : null;
-
-// Render PDF langsung ke elemen Canvas di DOM agar jendela dialog Print printer EPSON terbuka instan
-async function prepareAndPrintPdf() {
-  const pArea = document.getElementById('printArea');
-  if (!pArea) {
-    window.print();
     return;
   }
 
-  pArea.innerHTML = '<div style="padding:20px;text-align:center;font-size:16px;">Menyiapkan dokumen untuk cetak...</div>';
-
-  if (!currentPdfDoc && selectedFile) {
-    try {
-      const arrayBuffer = await selectedFile.arrayBuffer();
-      currentPdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    } catch (e) {
-      console.error('Gagal reload PDF:', e);
-    }
-  }
-
-  if (currentPdfDoc) {
-    try {
-      pArea.innerHTML = '';
-      const scale = 2.0; // Resolusi tinggi (300 DPI) agar tajam di kertas printer
-      for (let c = 0; c < copies; c++) {
-        for (let pageNum = 1; pageNum <= currentPdfDoc.numPages; pageNum++) {
-          const page = await currentPdfDoc.getPage(pageNum);
-          const viewport = page.getViewport({ scale });
-          const canvas = document.createElement('canvas');
-          canvas.className = 'print-page';
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext('2d');
-          await page.render({ canvasContext: ctx, viewport }).promise;
-          pArea.appendChild(canvas);
-        }
-      }
-
-      // Dialog Print EPSON terbuka langsung tanpa membuka tab viewer terpisah
-      setTimeout(() => {
-        window.focus();
-        window.print();
-      }, 400);
-      return;
-    } catch (err) {
-      console.error('Error rendering print canvases:', err);
-    }
-  }
-
-  // Fallback standar
-  window.print();
-}
-
-// Fungsi terpusat untuk eksekusi cetak & sukses transaksi
-function triggerSuccessPrint(tokenUsed = 'VALIDASI LANGSUNG ADMIN') {
-  if (!currentOrderId) return;
-  
-  if (autoValidationTimer) {
-    clearInterval(autoValidationTimer);
-    autoValidationTimer = null;
-  }
-
-  tokenErrorMsg.classList.add('hidden');
-  qrisModal.classList.add('hidden');
-  successModal.classList.remove('hidden');
-
-  // Catat transaksi sukses ke Riwayat Kios
-  saveToHistory({
-    date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-    orderId: currentOrderId,
-    fileName: selectedFile ? selectedFile.name : 'dokumen.pdf',
-    pages: pageCount,
-    copies: copies,
-    totalCost: currentTotalCost,
-    tokenUsed: tokenUsed,
-    status: 'SUKSES DICETAK'
-  });
-
-  // Hapus dari antrean pending & flag validated lokal
-  try {
-    let pendingList = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
-    pendingList = pendingList.filter(p => p.orderId !== currentOrderId);
-    localStorage.setItem('lab_pending_orders', JSON.stringify(pendingList));
-  } catch(e) {}
+  const formData = new FormData();
+  formData.append('document', selectedFile);
+  formData.append('copies', copies);
 
   try {
-    localStorage.removeItem(`validated_order_${currentOrderId.toUpperCase()}`);
-  } catch(e) {}
-
-  // Broadcast bahwa pesanan sudah selesai
-  if (syncChannel) {
-    try {
-      syncChannel.postMessage({
-        action: 'ORDER_COMPLETED',
-        orderId: currentOrderId
-      });
-    } catch(e) {}
-  }
-
-  try {
-    fetch('https://ntfy.sh/printer-lab-telkom-orders-2026', {
+    const res = await fetch(SERVER_URL + '/api/upload', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'ORDER_COMPLETED',
-        orderId: currentOrderId
-      })
-    }).catch(() => {});
-  } catch(e) {}
+      body: formData
+    });
+    
+    if (!res.ok) throw new Error('Upload gagal');
+    
+    const data = await res.json();
+    currentOrderId = data.order.orderId;
+    
+    modalAmount.textContent = formatRupiah(data.order.totalCost);
+    modalOrderId.textContent = 'ID ORDER: #' + currentOrderId;
 
-  // Eksekusi cetak langsung ke printer
-  prepareAndPrintPdf();
-}
+    const waMessage = 'Halo Admin,\nSaya bayar ' + formatRupiah(data.order.totalCost) + ' (QRIS LAB UB) utk file "' + selectedFile.name + '".\n\nID Pesanan: #' + currentOrderId + '\n\nMohon validasi agar otomatis tercetak! ??';
+    btnWhatsAppAdmin.href = 'https://wa.me/' + ADMIN_WA + '?text=' + encodeURIComponent(waMessage);
 
-function triggerRejectOrder() {
-  if (!currentOrderId) return;
-  
-  if (autoValidationTimer) {
-    clearInterval(autoValidationTimer);
-    autoValidationTimer = null;
+    qrisQrcodeDiv.innerHTML = '<img src="' + data.order.qrisImage + '" class="w-48 h-48 mx-auto">';
+    
+    qrisModal.classList.remove('hidden');
+    pollOrderStatus(currentOrderId);
+
+  } catch(e) {
+    alert('Terjadi kesalahan saat menghubungi server. Pastikan Server Lab aktif.');
   }
 
+  btnProcessPayment.disabled = false;
+  btnProcessPayment.innerHTML = originalBtnHtml;
+});
+
+btnCloseModal.addEventListener('click', () => {
   qrisModal.classList.add('hidden');
-  
-  try {
-    let pendingList = JSON.parse(localStorage.getItem('lab_pending_orders') || '[]');
-    pendingList = pendingList.filter(p => p.orderId !== currentOrderId);
-    localStorage.setItem('lab_pending_orders', JSON.stringify(pendingList));
-    localStorage.removeItem(`rejected_order_${currentOrderId.toUpperCase()}`);
-  } catch(e) {}
-
-  alert(`❌ PESANAN DITOLAK\n\nMaaf, antrean pesanan Anda (${currentOrderId}) telah ditolak oleh Admin karena terjadi penumpukan atau kendala lainnya.\n\nSilakan hubungi Admin via WhatsApp.`);
-  resetFile();
-}
-
-// 1. Dengar sinyal BroadcastChannel (Instan antar-tab browser di komputer Kios yang sama)
-if (syncChannel) {
-  syncChannel.onmessage = (e) => {
-    if (e.data && e.data.action === 'ORDER_VALIDATED') {
-      if (currentOrderId && e.data.orderId && e.data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
-        triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
-      }
-    } else if (e.data && e.data.action === 'ORDER_REJECTED') {
-      if (currentOrderId && e.data.orderId && e.data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
-        triggerRejectOrder();
-      }
-    }
-  };
-}
-
-// 2. Dengar sinyal window storage event
-window.addEventListener('storage', (e) => {
-  if (currentOrderId) {
-    if (e.key === `validated_order_${currentOrderId.toUpperCase()}`) {
-      triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
-    } else if (e.key === `rejected_order_${currentOrderId.toUpperCase()}`) {
-      triggerRejectOrder();
-    }
-  }
+  if (statusPollingInterval) clearInterval(statusPollingInterval);
 });
 
-// 3. Polling watcher lokal setiap 1 detik selama modal QRIS terbuka
-function startAutoValidationWatcher() {
-  if (autoValidationTimer) clearInterval(autoValidationTimer);
-  autoValidationTimer = setInterval(() => {
-    if (!currentOrderId) return;
-    const validated = localStorage.getItem(`validated_order_${currentOrderId.toUpperCase()}`);
-    if (validated) {
-      triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
-      return;
-    }
-    const rejected = localStorage.getItem(`rejected_order_${currentOrderId.toUpperCase()}`);
-    if (rejected) {
-      triggerRejectOrder();
-    }
-  }, 1000);
-}
-
-// 4. Subscribe ke realtime Server-Sent Events (ntfy.sh) untuk notifikasi beda perangkat (HP Admin -> Kios)
-try {
-  const remoteSse = new EventSource('https://ntfy.sh/printer-lab-telkom-orders-2026/sse');
-  remoteSse.onmessage = (e) => {
-    try {
-      let data = JSON.parse(e.data);
-      if (typeof data.message === 'string') {
-        try { data = JSON.parse(data.message); } catch(err) {}
-      }
-      if (data && data.action === 'ORDER_VALIDATED' && data.orderId) {
-        if (currentOrderId && data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
-          triggerSuccessPrint('VALIDASI 1-KLIK ADMIN');
-        }
-      } else if (data && data.action === 'ORDER_REJECTED' && data.orderId) {
-        if (currentOrderId && data.orderId.toUpperCase() === currentOrderId.toUpperCase()) {
-          triggerRejectOrder();
-        }
-      }
-    } catch(err) {}
-  };
-} catch(err) {}
-
-// Validasi Token Manual dari Pelanggan (Jika pelanggan memilih ketik token sendiri)
-function validateAndProceed() {
-  const entered = tokenInput.value.trim();
-  
-  // Validasi: cocok dengan token order ini ATAU Master PIN admin yang selalu aktif
-  if (entered === currentOrderToken || entered === MASTER_PIN) {
-    triggerSuccessPrint(entered);
-  } else {
-    tokenErrorMsg.classList.remove('hidden');
-    tokenInput.focus();
-  }
-}
-
-btnValidateToken.addEventListener('click', validateAndProceed);
-
-tokenInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    validateAndProceed();
-  }
-});
-
-// Tombol Cetak Dokumen di Modal Sukses
-if (btnPrintAgain) {
-  btnPrintAgain.addEventListener('click', () => {
-    prepareAndPrintPdf();
-  });
-}
-
-// Tombol Selesai di Modal Sukses
 btnFinishOrder.addEventListener('click', () => {
   successModal.classList.add('hidden');
   resetFile();

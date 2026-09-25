@@ -3,15 +3,14 @@ if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-// Konfigurasi Hub Server Lab Telkom (Jarak Jauh 24 Jam)
-const HUB_TOPIC = 'printer-lab-telkom-server-hub-2026';
+// Konfigurasi Server Lab Telkom (Jarak Jauh 24 Jam)
 let cachedServerUrl = null;
 let lastServerCheckTime = 0;
 
 // Temukan Alamat Server Komputer Lab secara otomatis (0 delay)
 async function getLiveServerUrl() {
   const now = Date.now();
-  if (cachedServerUrl && (now - lastServerCheckTime < 30000)) {
+  if (cachedServerUrl && (now - lastServerCheckTime < 15000)) {
     return cachedServerUrl;
   }
 
@@ -22,27 +21,19 @@ async function getLiveServerUrl() {
     return cachedServerUrl;
   }
 
-  // 2. Jika diakses via GitHub Pages, temukan tunnel aktif dari ntfy Hub
+  // 2. Jika diakses via GitHub Pages, temukan serverUrl dari status.json
   try {
-    const res = await fetch(`https://ntfy.sh/${HUB_TOPIC}/json?poll=1`);
+    const res = await fetch('./status.json?v=' + now);
     if (res.ok) {
-      const text = await res.text();
-      const lines = text.trim().split('\n').filter(Boolean);
-      for (let i = lines.length - 1; i >= 0; i--) {
-        try {
-          const item = JSON.parse(lines[i]);
-          let msg = item.message;
-          if (typeof msg === 'string') msg = JSON.parse(msg);
-          if (msg && msg.serverUrl && msg.status === 'ONLINE') {
-            cachedServerUrl = msg.serverUrl;
-            lastServerCheckTime = now;
-            return cachedServerUrl;
-          }
-        } catch(e) {}
+      const data = await res.json();
+      if (data && data.serverUrl && data.status === 'ONLINE') {
+        cachedServerUrl = data.serverUrl;
+        lastServerCheckTime = now;
+        return cachedServerUrl;
       }
     }
   } catch(e) {
-    console.warn('Gagal menghubungi Hub server:', e);
+    console.warn('Gagal membaca status.json:', e);
   }
 
   return null;
@@ -217,7 +208,7 @@ async function updatePrinterBadge() {
   }
 }
 updatePrinterBadge();
-setInterval(updatePrinterBadge, 30000);
+setInterval(updatePrinterBadge, 15000);
 
 if (btnCloseOfflineModal) {
   btnCloseOfflineModal.addEventListener('click', () => printerOfflineModal.classList.add('hidden'));
@@ -236,7 +227,6 @@ function pollOrderStatus(orderId, serverUrl) {
           statusPollingInterval = null;
           qrisModal.classList.add('hidden');
           successModal.classList.remove('hidden');
-          // Simpan ke riwayat lokal
           saveLocalHistory(orderId, 'VALIDASI ADMIN (PRINT OTOMATIS)');
         } else if (data.status === 'REJECTED') {
           clearInterval(statusPollingInterval);

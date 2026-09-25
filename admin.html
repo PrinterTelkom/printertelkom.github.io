@@ -330,28 +330,20 @@
 
     async function getLiveServerUrl() {
       const now = Date.now();
-      if (cachedServerUrl && (now - lastServerCheckTime < 30000)) return cachedServerUrl;
+      if (cachedServerUrl && (now - lastServerCheckTime < 15000)) return cachedServerUrl;
       if (!window.location.hostname.includes('github.io')) {
         cachedServerUrl = window.location.origin;
         lastServerCheckTime = now;
         return cachedServerUrl;
       }
       try {
-        const res = await fetch('https://ntfy.sh/' + HUB_TOPIC + '/json?poll=1');
+        const res = await fetch('./status.json?v=' + now);
         if (res.ok) {
-          const text = await res.text();
-          const lines = text.trim().split('\n').filter(Boolean);
-          for (let i = lines.length - 1; i >= 0; i--) {
-            try {
-              const item = JSON.parse(lines[i]);
-              let msg = item.message;
-              if (typeof msg === 'string') msg = JSON.parse(msg);
-              if (msg && msg.serverUrl && msg.status === 'ONLINE') {
-                cachedServerUrl = msg.serverUrl;
-                lastServerCheckTime = now;
-                return cachedServerUrl;
-              }
-            } catch(e) {}
+          const data = await res.json();
+          if (data && data.serverUrl && data.status === 'ONLINE') {
+            cachedServerUrl = data.serverUrl;
+            lastServerCheckTime = now;
+            return cachedServerUrl;
           }
         }
       } catch(e) {}

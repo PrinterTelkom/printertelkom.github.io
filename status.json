@@ -1,6 +1,6 @@
 {
-  "status": "ONLINE",
+  "status": "OFFLINE",
   "printerName": "EPSON L3210 Series",
-  "serverUrl": "https://cnet-travel-chen-harris.trycloudflare.com",
-  "updatedAt": "2026-10-16T04:11:41.010Z"
+  "serverUrl": null,
+  "updatedAt": "2026-11-10T02:22:45.356Z"
 }

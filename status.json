@@ -1,6 +1,6 @@
 {
-  "status": "OFFLINE",
+  "status": "ONLINE",
   "printerName": "EPSON L3210 Series",
-  "serverUrl": null,
-  "updatedAt": "2026-11-10T02:22:45.356Z"
+  "serverUrl": "https://collection-logged-halo-european.trycloudflare.com",
+  "updatedAt": "2026-11-10T02:23:16.109Z"
 }
